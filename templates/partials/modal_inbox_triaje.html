@@ -1,0 +1,105 @@
+<!-- templates/partials/modal_inbox_triaje.html -->
+
+{# 1. Preparamos la lista de destinos en una variable de Jinja para evitar errores de sintaxis en el HTML #}
+{% set destinos_list = [] %}
+{% for cat in categorias %}
+    {% for cuad in cat.cuadernos %}
+        {% if cuad.nombre != 'Inbox' %}
+            {% for tema in cuad.temas %}
+                {% set search_string = (cat.nombre ~ ' ' ~ cuad.nombre ~ ' ' ~ tema.nombre) | lower %}
+                {% set _ = destinos_list.append({
+                    'id': tema.id | string,
+                    'tema': tema.nombre,
+                    'cuaderno': cuad.nombre,
+                    'categoria': cat.nombre,
+                    'searchStr': search_string
+                }) %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+<div class="w-full max-w-md bg-[#1a1d26] border border-white/10 rounded-2xl shadow-2xl overflow-hidden fade-in-up relative"
+     x-data='{ 
+        search: "",
+        confirming: false,
+        destinos: {{ destinos_list | tojson }},
+        get filteredDestinos() {
+            if (!this.search) return this.destinos;
+            return this.destinos.filter(d => d.searchStr.includes(this.search.toLowerCase()));
+        }
+     }'>
+    
+    <!-- HEADER -->
+    <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-[#13151b]">
+        <div class="flex flex-col">
+            <h3 class="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em]">Mover Nota</h3>
+            <p class="text-xs text-slate-300 font-medium truncate w-64">"{{ nota.titulo }}"</p>
+        </div>
+        <button @click="modalOpen = false" class="text-slate-500 hover:text-white transition-colors">
+            <i class="ph ph-x text-lg"></i>
+        </button>
+    </div>
+
+    <!-- BUSCADOR -->
+    <div class="p-4 bg-[#0f1117] border-b border-white/5">
+        <div class="relative">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+            <input type="text" 
+                   x-model="search"
+                   placeholder="Buscar destino..." 
+                   class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+                   autofocus>
+        </div>
+    </div>
+
+    <!-- LISTA DE DESTINOS -->
+    <div class="max-h-[400px] overflow-y-auto custom-scroll min-h-[120px]">
+        
+        <!-- Casos de error / Vacío -->
+        <template x-if="destinos.length === 0">
+            <div class="p-10 text-center">
+                <p class="text-xs text-slate-500">No hay temas disponibles. Crea uno primero.</p>
+            </div>
+        </template>
+
+        <template x-if="destinos.length > 0 && filteredDestinos.length === 0">
+            <div class="p-10 text-center">
+                <p class="text-xs text-slate-500">No hay coincidencias.</p>
+            </div>
+        </template>
+
+        <!-- Lista Interactiva -->
+        <div class="p-2 space-y-1">
+            <template x-for="item in filteredDestinos" :key="item.id">
+                <button type="button"
+                        class="w-full text-left p-3 rounded-xl border border-transparent hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all group flex items-center justify-between"
+                        @click="confirming = true; htmx.ajax('POST', '/inbox/mover/{{ nota.id }}', { values: { nuevo_tema_id: item.id } })"
+                        @htmx:after-request="modalOpen = false; confirming = false">
+                    
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 group-hover:text-indigo-400">
+                            <i class="ph-fill ph-hash"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[11px] font-bold text-slate-200" x-text="item.tema"></span>
+                            <span class="text-[9px] text-slate-500 uppercase tracking-wider">
+                                <span x-text="item.categoria"></span> <i class="ph ph-caret-right text-[7px] mx-1"></i> <span x-text="item.cuaderno"></span>
+                            </span>
+                        </div>
+                    </div>
+                    <i class="ph ph-arrow-right text-slate-700 group-hover:text-indigo-500 transition-transform group-hover:translate-x-1"></i>
+                </button>
+            </template>
+        </div>
+    </div>
+
+    <!-- FEEDBACK OVERLAY -->
+    <div x-show="confirming" 
+         class="absolute inset-0 bg-[#1a1d26]/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center"
+         x-cloak x-transition>
+        <i class="ph-fill ph-check-circle text-indigo-500 text-5xl mb-2 animate-bounce"></i>
+        <p class="text-sm font-bold text-white uppercase tracking-widest">Movido</p>
+    </div>
+
+</div>

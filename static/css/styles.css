@@ -1,0 +1,72 @@
+:root {
+    /* Variables de Ancho Iniciales (Se sobreescriben con JS) */
+    --w-sidebar: 260px;
+    --w-list: 320px;
+}
+
+/* El Grid Maestro */
+.app-grid {
+    display: grid;
+    /* Col 1: Sidebar | Col 2: Resizer A | Col 3: Lista | Col 4: Resizer B | Col 5: Main */
+    grid-template-columns: var(--w-sidebar) 4px var(--w-list) 4px minmax(0, 1fr);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+/* Resizers (Tiradores) */
+.resizer {
+    background-color: transparent;
+    cursor: col-resize;
+    transition: background-color 0.2s;
+    z-index: 50;
+    height: 100%;
+}
+
+.resizer:hover, .resizer.active {
+    background-color: #3b82f6; /* Tailwind blue-500 */
+}
+
+/* Scrollbars sutiles para modo oscuro */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Desplazamiento suave para toda la aplicación */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Ajuste para que el título no quede pegado al borde superior al saltar */
+.prose h1, .prose h2, .prose h3 {
+    scroll-margin-top: 80px; /* Esto deja espacio para que no lo tape la toolbar */
+}
+
+/* --- AI GHOST TEXT (AXIOMA I.V) --- */
+.ai-ghost-text {
+    color: #a78bfa !important; /* Violeta claro */
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    /* Evitamos que el usuario lo edite mientras se genera */
+    pointer-events: none;
+    user-select: none;
+}
+
+/* Animación sutil de "pensando" para el cursor de la IA */
+.ai-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: #818cf8;
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: ai-blink 0.8s infinite;
+}
+
+@keyframes ai-blink {
+    50% { opacity: 0; }
+}
+
+[x-cloak] { display: none !important; }

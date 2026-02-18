@@ -1,0 +1,25 @@
+<!-- templates/partials/attachments_list.html -->
+{% for adj in adjuntos %}
+<div class="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-all">
+    <div class="flex items-center gap-3">
+        <i class="ph ph-file-text text-slate-500 w-4 h-4"></i>
+        <a href="{{ adj.url }}" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           class="text-xs text-slate-400 hover:text-slate-200 transition-colors truncate">
+            {{ adj.nombre_original }}
+        </a>
+    </div>
+    
+    <!-- Botón de Borrado -->
+    <button hx-delete="/api/notes/attachment/{{ adj.id }}"
+            hx-target="#note-attachments"
+            hx-confirm="¿Estás seguro de eliminar este archivo?"
+            hx-indicator="#upload-indicator"
+            class="text-slate-600 hover:text-red-400 transition-colors">
+        <i class="ph ph-trash w-3.5 h-3.5"></i>
+    </button>
+</div>
+{% else %}
+<span class="text-[10px] text-slate-700 italic">Sin archivos adjuntos</span>
+{% endfor %}

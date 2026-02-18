@@ -1,0 +1,43 @@
+<!-- templates/partials/modal_tema.html -->
+<div class="w-full max-w-md mx-auto bg-[#1a1d26] border border-white/10 rounded-2xl shadow-2xl overflow-hidden fade-in-up">
+    
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center">
+        <h3 class="text-sm font-bold text-white uppercase tracking-widest">Nuevo Tema</h3>
+        <button @click="modalOpen = false" class="text-slate-500 hover:text-white">
+            <i class="ph ph-x"></i>
+        </button>
+    </div>
+
+    <!-- Formulario de Creación -->
+    <form hx-post="/api/temas/create" 
+          hx-target="#notebook-sidebar-container" 
+          hx-swap="outerHTML"
+          hx-indicator="#sidebar-indicator"
+          @submit="aiLoading = true"
+          @htmx:after-request="modalOpen = false; aiLoading = false"
+          hx-on::after-request="aiLoading = false"
+          class="p-6">
+        
+        <!-- Campo oculto para vincular al cuaderno actual -->
+        <input type="hidden" name="cuaderno_id" value="{{ cuaderno_id }}">
+        
+        <div class="mb-6">
+            <label class="block text-[10px] text-slate-500 uppercase font-bold mb-2">Nombre del Tema</label>
+            <input type="text" 
+                   name="nombre" 
+                   required 
+                   autofocus
+                   placeholder="Ej: Análisis de Requerimientos"
+                   class="w-full bg-[#0f1117] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:border-indigo-500 outline-none transition-all">
+        </div>
+
+        <!-- Botón de Acción -->
+        <button type="submit" 
+                @click="modalOpen = false; aiLoading = true"
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 group">
+            <i class="ph ph-plus-circle transition-transform group-hover:scale-110"></i>
+            <span>Crear Tema</span>
+        </button>
+    </form>
+</div>

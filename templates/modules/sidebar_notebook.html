@@ -1,0 +1,152 @@
+<!-- templates/modules/sidebar_notebook.html -->
+<div id="notebook-sidebar-container" 
+     class="flex flex-col h-full fade-in-up select-none overflow-y-auto custom-scroll"
+     hx-get="/partial/sidebar/notebook/{{ cuaderno.id }}"
+     hx-trigger="refresh-notebook-sidebar from:body"
+     hx-target="this"
+     hx-swap="outerHTML"
+     x-init="
+        setTimeout(() => { $el.scrollTop = notebookScrollTop; }, 50);
+     "
+     @scroll.debounce.150ms="notebookScrollTop = $el.scrollTop; localStorage.setItem('docs_notebook_scroll', $el.scrollTop)">
+    
+    <!-- CABECERA: CONTEXTO DEL CUADERNO -->
+    <div class="px-3 py-4 border-b border-white/5 bg-[#13151b]/50 backdrop-blur-md sticky top-0 z-30">
+        <div class="flex items-center gap-3">
+            <button hx-get="/partial/sidebar/dashboard" 
+                    hx-target="#contextual-sidebar"
+                    hx-indicator="#sidebar-indicator"
+                    hx-swap="innerHTML"
+                    @click="activeCuadernoId = null; activeCategoriaId = null; mode = 'dashboard'; notebookScrollTop = 0;"
+                    class="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.03] border border-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all">
+                <i class="ph-bold ph-arrow-left"></i>
+            </button>
+            
+            <div class="flex flex-col truncate flex-1">
+                <span class="text-[9px] font-bold text-slate-600 uppercase tracking-widest leading-none mb-1">
+                    {{ categoria.nombre }}
+                </span>
+                <h3 class="text-sm font-bold text-slate-100 truncate">
+                    {{ cuaderno.nombre }}
+                </h3>
+            </div>
+
+            <!-- Botón Añadir Tema (Corregido y Axiomático) -->
+            <button type="button"
+                    @click="openModal('/partial/modal/nuevo-tema/{{ cuaderno.id }}')"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all">
+                <i class="ph-bold ph-plus-circle text-xl"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- LISTADO DE TEMAS Y NOTAS -->
+    <div class="flex-1 py-4 px-3 space-y-6">
+        {% if cuaderno.temas %}
+            {% for tema in cuaderno.temas | sort(attribute='orden') %}
+            <div class="group/tema block" 
+                 x-init="checkInitialTheme('{{ tema.id }}', {{ 'true' if loop.first else 'false' }})">
+                
+                <!-- ENCABEZADO DE TEMA (Con Engranaje) -->
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-3 cursor-pointer flex-1" @click="toggleTheme('{{ tema.id }}')">
+                        <div class="w-5 h-5 flex items-center justify-center rounded-md transition-colors"
+                             :class="openThemes.includes('{{ tema.id }}') ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-600'">
+                            <i class="ph-bold text-[10px]" :class="openThemes.includes('{{ tema.id }}') ? 'ph-caret-down' : 'ph-caret-right'"></i>
+                        </div>
+                        
+                        <span class="text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+                              :class="openThemes.includes('{{ tema.id }}') ? 'text-slate-200' : 'text-slate-500 group-hover/tema:text-slate-300'">
+                            {{ tema.nombre }}
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Engranaje de Tema -->
+                        <button class="opacity-0 group-hover/tema:opacity-100 text-slate-500 hover:text-white transition-opacity p-1"
+                                @click.stop="openGearMenu($event, 'TM_{{ tema.id }}')">
+                            <i class="ph ph-gear text-[13px]"></i>
+                        </button>
+                        
+                        <span class="text-[9px] font-mono text-slate-600 bg-slate-800/50 px-1.5 py-0.5 rounded border border-white/5">
+                            {{ tema.anotaciones|length }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- LISTA DE NOTAS -->
+                <div x-show="openThemes.includes('{{ tema.id }}')" x-collapse class="relative ml-[6px] pl-6 space-y-3 mt-2 pb-2">
+                    <div class="absolute left-0 top-0 bottom-0 w-px bg-slate-800/50 z-0"></div>
+
+                    {% for nota in tema.anotaciones %}
+                    <div class="relative group/note cursor-pointer"
+                         @click="
+                            activeNoteId = '{{ nota.id }}'; 
+                            window.dispatchEvent(new CustomEvent('note-selected', { detail: { id: '{{ nota.id }}' } }));
+                            window.history.pushState({}, '', '/note/{{ nota.id }}');
+                         ">
+                        <div class="absolute -left-[27px] top-4 w-2 h-2 rounded-full border-2 transition-all duration-300 z-10"
+                             :class="activeNoteId === '{{ nota.id }}' 
+                                     ? 'bg-indigo-500 border-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]' 
+                                     : 'bg-[#0f1117] border-slate-700 group-hover/note:border-slate-500'">
+                        </div>
+
+                        <div class="note-card bg-[#1a1d26] p-3 rounded-xl border transition-all duration-300 hover:translate-x-1"
+                            :class="activeNoteId === '{{ nota.id }}' 
+                                    ? 'border-indigo-500/40 bg-indigo-500/[0.05] shadow-lg shadow-indigo-500/5' 
+                                    : 'border-white/[0.03] hover:border-white/10 hover:bg-[#1a1d26]/80'">
+                            
+                            <div class="flex justify-between items-start mb-1">
+                                <div class="flex items-center gap-2 truncate pr-6">
+                                    <i class="ph text-sm"
+                                       :class="activeNoteId === '{{ nota.id }}' ? 'ph-note-blank-fill text-indigo-400' : 'ph-note-blank text-slate-500'"></i>
+                                    <h4 class="text-[12px] font-bold truncate transition-colors"
+                                        :class="activeNoteId === '{{ nota.id }}' ? 'text-white' : 'text-slate-300 group-hover/note:text-white'">
+                                        {{ nota.titulo or 'Sin título' }}
+                                    </h4>
+                                </div>
+                                <button class="gear-button" @click.stop="openGearMenu($event, '{{ nota.id }}')" type="button">
+                                    <i class="ph-bold ph-gear text-[12px]"></i>
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-500 line-clamp-2 leading-relaxed font-medium">
+                                {{ nota.resumen_texto }}
+                            </p>
+                            <div class="mt-2 text-[9px] text-slate-600 font-mono">
+                                {{ nota.created_at.strftime('%d %b, %H:%M') }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <div class="relative group/add">
+                        <div class="absolute -left-[26px] top-4 w-1.5 h-1.5 rounded-full border border-dashed border-slate-700"></div>
+                        <button hx-post="/api/notes/create" hx-vals='{"tema_id": "{{ tema.id }}"}' hx-target="#notebook-sidebar-container" hx-indicator="#sidebar-indicator" hx-swap="outerHTML" @click="aiLoading = true" hx-on::after-request="aiLoading = false" class="w-full text-left p-2 rounded-lg border border-dashed border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all group">
+                            <span class="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 uppercase tracking-tighter flex items-center gap-2">
+                                <i class="ph ph-plus-circle text-xs"></i> Añadir Nota
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- ESTADO VACÍO -->
+            <div class="flex flex-col items-center justify-center py-20 px-6 text-center">
+                <div class="w-16 h-16 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-center mb-4">
+                    <i class="ph ph-folder-dotted text-slate-700 text-3xl"></i>
+                </div>
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cuaderno Vacío</h4>
+                <p class="text-[11px] text-slate-600 leading-relaxed mb-6">
+                    Comienza organizando este cuaderno creando tu primer tema.
+                </p>
+                <button hx-get="/partial/modal/nuevo-tema/{{ cuaderno.id }}"
+                        hx-target="#modal-content"
+                        @click="modalOpen = true"
+                        class="px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600 border border-indigo-500/20 text-indigo-400 hover:text-white text-[10px] font-bold rounded-lg transition-all uppercase tracking-widest">
+                    Crear primer tema
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>

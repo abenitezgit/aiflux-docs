@@ -1,0 +1,144 @@
+<!-- templates/modules/sidebar_dashboard.html -->
+<div id="sidebar-dashboard-container" 
+     class="flex flex-col h-full space-y-2 fade-in-up select-none overflow-y-auto custom-scroll"
+     x-init="
+        setTimeout(() => {
+            $el.scrollTo({ top: sidebarScrollTop, behavior: 'instant' });
+        }, 50);
+     "
+     @scroll.debounce.150ms="sidebarScrollTop = $el.scrollTop; localStorage.setItem('docs_sidebar_scroll', $el.scrollTop)">
+    
+    <!-- HEADER -->
+    <div class="p-5 flex items-center justify-between">
+        <div>
+            <h2 class="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">Biblioteca</h2>
+        </div>
+        <!-- Botón Crear Categoría -->
+        <button @click="openModal('/partial/modal/nueva-categoria')"
+                class="w-6 h-6 rounded-md border border-white/5 flex items-center justify-center hover:bg-white/5 transition-colors">
+            <i class="ph ph-plus text-[14px] text-gray-500"></i>
+        </button>
+    </div>
+
+    <!-- BUSCADOR -->
+    <div class="px-4 mb-4">
+        <div class="relative">
+            <input type="text" placeholder="Buscar..." 
+                class="w-full bg-white/[0.02] border border-white/5 rounded-lg py-1.5 pl-8 pr-3 text-[11px] focus:outline-none focus:border-purple-500/40 transition-all placeholder:text-gray-600">
+            <i class="ph ph-magnifying-glass text-[12px] absolute left-2.5 top-2.5 text-gray-600"></i>
+        </div>
+    </div>
+
+    <!-- LISTA DE BIBLIOTECAS/CATEGORÍAS -->
+    <div class="flex-1 px-3 space-y-2">
+        {% for cat in categorias %}
+        
+        {% set icon_map = {
+            'folder': 'folder', 'code': 'code', 'graduation-cap': 'graduation-cap',
+            'briefcase': 'briefcase', 'chess': 'castle-turret', 'inbox': 'tray',
+            'chalkboard-teacher': 'chalkboard-teacher', 'school': 'school',
+            'microchip': 'cpu', 'film': 'film-strip', 'music': 'music-notes',
+            'tools': 'wrench', 'robot': 'robot', 'industry': 'factory',
+            'microscope': 'microscope'
+        } %}
+        {% set db_icon = cat.icono if cat.icono else 'folder' %}
+        {% set final_icon = icon_map.get(db_icon, db_icon) %}
+
+        <div class="library-card rounded-xl overflow-hidden group/cat"
+             :class="openCategories.includes('{{ cat.id }}') ? 'border-purple-500/20 bg-purple-500/[0.01]' : ''">
+            
+            <!-- CABECERA COLAPSABLE -->
+            <div class="w-full p-2.5 flex items-center justify-between group transition-colors">
+                <div class="flex items-center gap-2.5 cursor-pointer flex-1" @click="toggleCategory('{{ cat.id }}')">
+                    <div class="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center border border-blue-500/10"
+                         :class="openCategories.includes('{{ cat.id }}') ? 'bg-purple-500/10 border-purple-500/20' : ''">
+                        <i class="ph-fill ph-{{ final_icon }} text-[14px]"
+                           :class="openCategories.includes('{{ cat.id }}') ? 'text-purple-400' : 'text-blue-400/80'"></i>
+                    </div>
+                    <span class="text-[13.2px] font-medium transition-colors"
+                          :class="openCategories.includes('{{ cat.id }}') ? 'text-white/90 font-semibold' : 'text-gray-400 group-hover:text-gray-200'">
+                        {{ cat.nombre }}
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <!-- Engranaje de Gestión de Categoría (Solo visible en hover de la card) -->
+                    <button class="opacity-0 group-hover/cat:opacity-100 text-slate-500 hover:text-white transition-opacity p-1"
+                            @click.stop="openGearMenu($event, 'CAT_{{ cat.id }}')">
+                        <i class="ph ph-gear text-[14px]"></i>
+                    </button>
+                    <i class="ph ph-caret-right w-3 h-3 text-gray-700 transition-transform cursor-pointer"
+                       @click="toggleCategory('{{ cat.id }}')"
+                       :class="openCategories.includes('{{ cat.id }}') ? 'rotate-90 text-purple-400/50' : ''"></i>
+                </div>
+            </div>
+
+            <!-- CUADERNOS (COLAPSABLE - JERARQUÍA CON TIMELINE) -->
+            <div x-show="openCategories.includes('{{ cat.id }}')" x-collapse class="pb-2">
+                
+                <!-- CONTENEDOR RELATIVO PARA EL TIMELINE -->
+                <div class="relative ml-6 mt-1 space-y-2">
+                    
+                    <!-- LÍNEA VERTICAL MAESTRA -->
+                    <div class="absolute left-[-14px] top-0 bottom-4 w-px bg-slate-800"></div>
+
+                    {% for cuaderno in cat.cuadernos %}
+                    <div class="relative group/item flex items-center">
+                        
+                        <!-- CONECTOR HORIZONTAL (L-Shape) -->
+                        <div class="absolute left-[-14px] top-1/2 -translate-y-1/2 w-3.5 h-px bg-slate-800 group-hover/item:bg-emerald-500/50"></div>
+
+                        <!-- TARJETA DELGADA DE CUADERNO -->
+                        <div class="flex-1 flex items-center justify-between p-1.5 ml-0 rounded-lg border transition-all duration-200 cursor-pointer overflow-hidden"
+                             :class="activeCuadernoId === '{{ cuaderno.id }}' 
+                                     ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-900/10' 
+                                     : 'bg-white/[0.01] border-white/5 hover:border-white/10 hover:bg-white/[0.03]'"
+                             @click="activeCuadernoId = '{{ cuaderno.id }}'; activeCategoriaId = '{{ cat.id }}'; mode = 'notebook';">
+                            
+                            <!-- Contenido de la Tarjeta -->
+                            <div class="flex items-center gap-2.5 flex-1 min-w-0"
+                                 hx-get="/partial/sidebar/notebook/{{ cuaderno.id }}"
+                                 hx-target="#contextual-sidebar"
+                                 hx-indicator="#sidebar-indicator"
+                                 hx-swap="innerHTML">
+                                
+                                <div class="w-5 h-5 flex items-center justify-center rounded-md shrink-0"
+                                     :class="activeCuadernoId === '{{ cuaderno.id }}' ? 'text-emerald-400' : 'text-slate-600 group-hover/item:text-slate-400'">
+                                    <i class="ph-fill ph-book-bookmark text-[13px]"></i>
+                                </div>
+
+                                <span class="text-[11px] truncate transition-colors"
+                                      :class="activeCuadernoId === '{{ cuaderno.id }}' ? 'text-white font-semibold' : 'text-slate-400 group-hover/item:text-slate-200'">
+                                    {{ cuaderno.nombre }}
+                                </span>
+                            </div>
+
+                            <!-- Engranaje -->
+                            <button @click.stop="openGearMenu($event, 'NB_{{ cuaderno.id }}')"
+                                    type="button"
+                                    class="opacity-0 group-hover/item:opacity-100 text-slate-500 hover:text-white transition-opacity px-2 shrink-0">
+                                <i class="ph ph-gear text-[13px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <!-- BOTÓN AÑADIR CUADERNO (Conector de Timeline) -->
+                    <div class="relative flex items-center">
+                        <div class="absolute left-[-14px] top-1/2 -translate-y-1/2 w-3.5 h-px bg-slate-800"></div>
+                        <button @click="openModal('/partial/modal/nuevo-cuaderno/{{ cat.id }}')"
+                                class="w-full py-1.5 rounded-lg border border-dashed border-white/5 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all group">
+                            <div class="flex items-center justify-center gap-2 text-[9px] font-bold text-slate-600 group-hover:text-cyan-400 uppercase tracking-widest">
+                                <i class="ph ph-plus-circle"></i>
+                                <span>Añadir Cuaderno</span>
+                            </div>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="h-6"></div>
+</div>

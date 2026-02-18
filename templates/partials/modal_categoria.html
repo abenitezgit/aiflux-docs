@@ -1,0 +1,60 @@
+<!-- templates/partials/modal_categoria.html -->
+<div class="bg-[#1a1d26] border border-white/10 rounded-2xl shadow-2xl overflow-hidden fade-in-up"
+     x-data="{ selectedIcon: 'folder' }">
+    
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-white/5 flex justify-between items-center">
+        <h3 class="text-sm font-bold text-white uppercase tracking-widest">Nueva Biblioteca</h3>
+        <button @click="modalOpen = false" class="text-slate-500 hover:text-white">
+            <i class="ph ph-x"></i>
+        </button>
+    </div>
+
+    <form hx-post="/api/categorias/create" 
+          hx-target="#contextual-sidebar" 
+          hx-swap="innerHTML"
+          @htmx:after-request="modalOpen = false"
+          class="p-6">
+        
+        <!-- Input de Nombre -->
+        <div class="mb-6">
+            <label class="block text-[10px] text-slate-500 uppercase font-bold mb-2">Nombre de la Biblioteca</label>
+            <input type="text" 
+                   name="nombre" 
+                   required 
+                   autofocus
+                   placeholder="Ej: INVESTIGACIÓN"
+                   class="w-full bg-[#0f1117] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:border-indigo-500 outline-none transition-all">
+        </div>
+
+        <!-- Selector de Iconos -->
+        <div class="mb-8">
+            <label class="block text-[10px] text-slate-500 uppercase font-bold mb-3">Identidad Visual (Icono)</label>
+            <input type="hidden" name="icono" :value="selectedIcon">
+            
+            <div class="grid grid-cols-5 gap-3">
+                {% set icons = [
+                    'folder', 'code', 'graduation-cap', 'briefcase', 'castle-turret',
+                    'tray', 'chalkboard-teacher', 'school', 'cpu', 'film-strip',
+                    'music-notes', 'wrench', 'robot', 'factory', 'microscope'
+                ] %}
+                
+                {% for icon in icons %}
+                <button type="button" 
+                        @click="selectedIcon = '{{ icon }}'"
+                        :class="selectedIcon === '{{ icon }}' ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-[#0f1117] border-white/5 text-slate-600 hover:text-slate-300'"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl border transition-all">
+                    <i class="ph-fill ph-{{ icon }} text-lg"></i>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Botón Acción -->
+        <button type="submit" 
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 group">
+            <span>Crear Biblioteca</span>
+            <i class="ph ph-arrow-right transition-transform group-hover:translate-x-1"></i>
+        </button>
+    </form>
+</div>

@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+sqlmodel
+asyncpg
+python-dotenv
+python-jose[cryptography]
+bcrypt
+python-multipart
+jinja2
+supabase
+litellm
+groq

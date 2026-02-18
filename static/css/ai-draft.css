@@ -1,0 +1,23 @@
+/**
+ * Estilos para AI Draft Mark
+ */
+
+/* Texto generado por IA (draft) - color azul */
+.ai-draft-text {
+    color: #60a5fa;
+    background-color: rgba(96, 165, 250, 0.1);
+    border-bottom: 1px dotted #60a5fa;
+    padding: 0 2px;
+    transition: all 0.2s ease;
+}
+
+/* Hover sobre draft - mostrar que es interactivo */
+.ai-draft-text:hover {
+    background-color: rgba(96, 165, 250, 0.2);
+    border-bottom-style: solid;
+}
+
+/* Cuando está seleccionado */
+.ProseMirror .ai-draft-text::selection {
+    background-color: rgba(59, 130, 246, 0.3);
+}

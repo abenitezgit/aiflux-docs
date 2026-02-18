@@ -1,0 +1,52 @@
+<!-- templates/partials/modal_confirm_delete.html -->
+<div class="w-full bg-[#1a1d26] border border-red-500/30 rounded-2xl shadow-2xl overflow-hidden fade-in-up"
+     x-data="{ confirmationName: '', expectedName: '{{ obj_name }}' }">
+    
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-red-500/10 bg-red-500/5 flex justify-between items-center">
+        <div class="flex items-center gap-2 text-red-400">
+            <i class="ph-fill ph-warning-octagon text-lg"></i>
+            <h3 class="text-xs font-bold uppercase tracking-widest">Borrado de Seguridad</h3>
+        </div>
+        <button @click="modalOpen = false" class="text-slate-500 hover:text-white">
+            <i class="ph ph-x"></i>
+        </button>
+    </div>
+
+    <div class="p-8">
+        <p class="text-sm text-slate-300 mb-2">Estás a punto de eliminar la {{ type }}:</p>
+        <p class="text-lg font-bold text-white mb-4">"{{ obj_name }}"</p>
+        
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-6">
+            <p class="text-xs text-red-300 leading-relaxed">
+                <i class="ph-bold ph-info mr-1"></i> {{ warning }}
+            </p>
+        </div>
+
+        <div class="mb-8">
+            <label class="block text-[10px] text-slate-500 uppercase font-bold mb-2">Escribe el nombre para confirmar:</label>
+            <input type="text" 
+                   x-model="confirmationName"
+                   placeholder="Escribe el nombre aquí..."
+                   class="w-full bg-[#0f1117] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:border-red-500 outline-none transition-all">
+        </div>
+
+        <!-- Botón de Borrado Unificado -->
+        <button hx-delete="{{ delete_url }}"
+                {% if type == 'tema' %}
+                    hx-target="#notebook-sidebar-container"
+                    hx-swap="outerHTML"
+                {% else %}
+                    hx-target="#contextual-sidebar"
+                    hx-swap="innerHTML"
+                {% endif %}
+                hx-indicator="#sidebar-indicator"
+                :disabled="confirmationName !== expectedName"
+                @click="modalOpen = false; aiLoading = true"
+                @htmx:after-request="aiLoading = false"
+                class="w-full py-4 bg-red-600 hover:bg-red-500 ...">
+            <i class="ph ph-trash"></i>
+            <span>Eliminar definitivamente</span>
+        </button>
+    </div>
+</div>

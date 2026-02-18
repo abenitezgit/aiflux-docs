@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge OS - Zen Writer Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            background-color: #0f1117; 
+            color: #cbd5e1; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        .serif { font-family: 'Crimson Pro', serif; }
+
+        /* 1. NAVEGADOR DE PÁGINAS (IZQUIERDA) - Según tu dibujo */
+        .page-strip {
+            position: fixed;
+            left: 2rem;
+            top: 0;
+            bottom: 0;
+            width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 0;
+            gap: 1.5rem;
+            overflow-y: auto;
+            z-index: 50;
+        }
+        .page-strip::-webkit-scrollbar { display: none; }
+
+        .thumb-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .thumb-box {
+            width: 50px;
+            height: 70px;
+            background: #22d3ee; /* El Cian de tu dibujo */
+            opacity: 0.4;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .thumb-unit.active .thumb-box {
+            opacity: 1;
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
+            transform: scale(1.1);
+        }
+        .add-btn-small {
+            width: 18px;
+            height: 18px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .add-btn-small:hover { background: rgba(255,255,255,0.1); color: white; }
+
+        /* 2. ESCENARIO CENTRAL (EL PAPEL) */
+        .stage {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 0;
+        }
+
+        .active-page {
+            width: 21cm;
+            height: 29.7cm;
+            background: #333333; /* El Gris oscuro de tu dibujo */
+            padding: 3cm 2.5cm;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 20;
+            color: white;
+        }
+
+        /* PÁGINAS GHOST (ARRIBA Y ABAJO) - Según tu dibujo */
+        .ghost-page {
+            width: 21cm;
+            height: 120px; /* Solo una porción como en tu dibujo */
+            background: #22d3ee; /* El Cian de tu dibujo */
+            opacity: 0.2;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 0.5rem;
+            position: relative;
+            filter: blur(1px);
+        }
+        .ghost-page.top { border-radius: 4px 4px 0 0; }
+        .ghost-page.bottom { border-radius: 0 0 4px 4px; align-items: flex-start; padding-top: 0.5rem; }
+
+        .add-btn-large {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(15, 17, 23, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 30;
+            margin: -12px 0; /* Para que flote en el corte */
+        }
+
+        /* 3. NAVEGACIÓN RÁPIDA (DERECHA) - Según tu dibujo */
+        .fast-nav {
+            position: fixed;
+            right: 3rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20vh; /* Espaciado amplio como en tu dibujo */
+            z-index: 50;
+        }
+        .nav-arrow {
+            font-size: 2rem;
+            color: rgba(255,255,255,0.2);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .nav-arrow:hover { color: #22d3ee; transform: scale(1.2); }
+
+        /* 4. LABORATORIO (NOTAS AL MARGEN - PRESERVADAS) */
+        .margin-note {
+            position: absolute;
+            right: -260px;
+            width: 220px;
+            font-size: 0.75rem;
+            padding: 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 2px solid #6366f1;
+            border-radius: 0 0.5rem 0.5rem 0;
+            color: #a5b4fc;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body x-data="{ lens: 'writer', activePage: 2 }">
+
+    <!-- 1. NAVEGADOR IZQUIERDO (Páginas Miniatura) -->
+    <aside class="page-strip" x-show="lens === 'writer'">
+        <template x-for="p in [1, 2, 3, 4, 5]">
+            <div class="thumb-unit" :class="activePage === p ? 'active' : ''">
+                <div class="thumb-box" @click="activePage = p"></div>
+                <div class="add-btn-small"><i class="ph ph-plus"></i></div>
+            </div>
+        </template>
+    </aside>
+
+    <!-- 2. ESCENARIO CENTRAL -->
+    <main class="stage">
+        
+        <!-- Ghost Page Arriba -->
+        <div class="ghost-page top" x-show="lens === 'writer'">
+            <div class="serif opacity-20 text-xs italic">Final de la página anterior...</div>
+        </div>
+        
+        <!-- Botón añadir arriba -->
+        <div class="add-btn-large" x-show="lens === 'writer'"><i class="ph ph-plus"></i></div>
+
+        <!-- PÁGINA ACTIVA (Tu rectángulo gris) -->
+        <article class="active-page serif">
+            <h2 class="text-3xl font-bold mb-8">Capítulo II: Sombras</h2>
+            
+            <div class="text-xl leading-relaxed space-y-6 outline-none" contenteditable="true">
+                <p class="relative">
+                    El texto fluye aquí, en el corazón del folio gris. La concentración es absoluta. No hay bordes blancos que deslumbren, solo el pensamiento puro sobre el lienzo oscuro.
+                    
+                    <!-- NOTA DE LABORATORIO (Preservada idéntica) -->
+                    <span x-show="lens === 'study'" class="margin-note top-0">
+                        <b class="block mb-1 text-indigo-400">STICKY NOTE</b>
+                        He mantenido este formato exactamente como pediste: margen derecho, borde azul y fondo translúcido.
+                    </span>
+                </p>
+
+                <p>
+                    Kote frotó la madera rítmicamente. En el dibujo que trazaste, este espacio era el protagonista. He respetado los márgenes internos para que el texto respire.
+                </p>
+
+                <p>
+                    Cualquier palabra escrita aquí se siente definitiva, como tallada en piedra volcánica.
+                </p>
+            </div>
+
+            <!-- Marca de página inferior -->
+            <footer class="absolute bottom-12 left-0 right-0 text-center opacity-20 font-sans text-xs tracking-widest">
+                — FOLIO <span x-text="activePage"></span> —
+            </footer>
+        </article>
+
+        <!-- Botón añadir abajo -->
+        <div class="add-btn-large" x-show="lens === 'writer'"><i class="ph ph-plus"></i></div>
+
+        <!-- Ghost Page Abajo -->
+        <div class="ghost-page bottom" x-show="lens === 'writer'">
+            <div class="serif opacity-20 text-xs italic">Comienzo de la página siguiente...</div>
+        </div>
+
+    </main>
+
+    <!-- 3. NAVEGACIÓN RÁPIDA (DERECHA) -->
+    <nav class="fast-nav" x-show="lens === 'writer'">
+        <i class="ph-fill ph-caret-double-up nav-arrow"></i>
+        <i class="ph-fill ph-caret-double-down nav-arrow"></i>
+    </nav>
+
+    <!-- SELECTOR DE LENTE (Para probar el Laboratorio) -->
+    <div class="fixed top-6 right-6 z-[100] flex gap-2">
+        <button @click="lens = 'writer'" :class="lens === 'writer' ? 'bg-cyan-500 text-black' : 'bg-white/10 text-white'" class="px-4 py-2 rounded-full text-xs font-bold transition-all">Modo Escritor</button>
+        <button @click="lens = 'study'" :class="lens === 'study' ? 'bg-indigo-600 text-white' : 'bg-white/10 text-white'" class="px-4 py-2 rounded-full text-xs font-bold transition-all">Modo Laboratorio</button>
+    </div>
+
+</body>
+</html>

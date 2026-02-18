@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Docs V3 - Inbox Workflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .serif-text { font-family: 'Merriweather', serif; }
+
+        .glass { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        .editor-paper { max-width: 65ch; margin: 0 auto; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animación para el badge de Inbox */
+        .pulse-amber { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); animation: pulse-amber 2s infinite; }
+        @keyframes pulse-amber {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+    </style>
+</head>
+<body class="bg-[#0f1117] text-slate-300 h-screen overflow-hidden flex" x-data="appData()">
+
+    <!-- 1. BARRA DE NAVEGACIÓN (Extrema Izquierda) -->
+    <nav class="w-16 bg-[#0B0C10] border-r border-white/5 flex flex-col items-center py-6 z-50 shrink-0">
+        <div class="mb-8 text-indigo-500 text-3xl hover:rotate-12 transition-transform cursor-pointer"><i class="ph-fill ph-brain"></i></div>
+        
+        <div class="flex flex-col gap-4 w-full px-2">
+            <!-- Botón Dashboard -->
+            <button @click="setMode('dashboard')" :class="mode === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-squares-four text-xl"></i>
+                <span class="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Inicio</span>
+            </button>
+
+            <!-- Botón INBOX (Nuevo) -->
+            <button @click="setMode('inbox')" :class="mode === 'inbox' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25' : 'text-slate-500 hover:text-amber-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-tray text-xl"></i>
+                <!-- Contador de Inbox -->
+                <span class="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold px-1 rounded-full border border-[#0B0C10]">3</span>
+                <span class="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Bandeja de Entrada</span>
+            </button>
+
+            <!-- Botón Proyectos -->
+            <button @click="setMode('projects')" :class="mode === 'projects' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-folder-notch text-xl"></i>
+                <span class="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Proyectos</span>
+            </button>
+        </div>
+        
+        <div class="mt-auto mb-4">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-indigo-500 border-2 border-[#0B0C10] ring-2 ring-indigo-500/30"></div>
+        </div>
+    </nav>
+
+
+    <!-- 2. PANEL IZQUIERDO (Dinámico) -->
+    <aside class="w-64 bg-[#13151b] border-r border-white/5 flex flex-col transition-all duration-300 shrink-0" :class="zenMode ? '-ml-64 opacity-50' : ''">
+        
+        <div class="h-14 flex items-center px-5 border-b border-white/5 justify-between">
+            <span class="text-xs font-bold tracking-widest text-slate-500 uppercase" x-text="leftPanelTitle"></span>
+            <!-- Botón de limpiar inbox si estamos en modo inbox -->
+            <button x-show="mode === 'inbox'" class="text-xs text-amber-500 hover:text-amber-300">Procesar Todo</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto no-scrollbar p-2">
+            
+            <!-- PANEL: DASHBOARD -->
+            <div x-show="mode === 'dashboard'" class="space-y-6 p-2">
+                <div class="p-4 bg-gradient-to-br from-amber-500/10 to-orange-500/5 rounded-lg border border-amber-500/20">
+                    <h4 class="text-amber-400 text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                        <i class="ph-fill ph-tray"></i> Inbox (3)
+                    </h4>
+                    <p class="text-xs text-slate-400 mb-3">Tienes notas rápidas sin procesar.</p>
+                    <button @click="setMode('inbox')" class="w-full py-1.5 bg-amber-500/20 text-amber-300 text-xs rounded hover:bg-amber-500/30 border border-amber-500/30">Revisar</button>
+                </div>
+                <!-- Agenda... -->
+                <div>
+                    <h4 class="text-white text-sm font-medium mb-3">Para hoy</h4>
+                    <div class="space-y-2">
+                        <div class="p-3 rounded-lg bg-white/5 border border-white/5 cursor-pointer"><div class="text-sm text-slate-200">Revisar Doc API</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL: INBOX LIST (NUEVO) -->
+            <div x-show="mode === 'inbox'" class="space-y-2 p-1">
+                <div class="text-xs text-slate-500 px-2 py-2">Hoy</div>
+                <!-- Nota activa -->
+                <div @click="openInboxItem(1)" class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/40 cursor-pointer group">
+                    <div class="flex justify-between items-start">
+                        <h4 class="text-sm text-white font-medium truncate w-32" x-text="currentNote.title || 'Nota sin título'"></h4>
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1 line-clamp-2" x-text="currentNote.body || 'Texto...'"></p>
+                </div>
+                
+                <div class="text-xs text-slate-500 px-2 py-2 mt-4">Ayer</div>
+                <div class="p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 cursor-pointer opacity-70">
+                    <h4 class="text-sm text-slate-300 font-medium">Link interesante Tiptap</h4>
+                    <p class="text-xs text-slate-500 mt-1">Guardar para revisar luego...</p>
+                </div>
+                <div class="p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 cursor-pointer opacity-70">
+                    <h4 class="text-sm text-slate-300 font-medium">Idea App V2</h4>
+                    <p class="text-xs text-slate-500 mt-1">Usar sidebar colapsable...</p>
+                </div>
+            </div>
+
+            <!-- PANEL: WRITER (Contexto) -->
+            <div x-show="mode === 'writer'" class="p-2">
+                <div class="text-xs font-bold text-slate-500 mb-2 uppercase">Outline</div>
+                <nav class="space-y-1 text-sm border-l border-slate-700 ml-1 pl-3">
+                    <span class="text-slate-400">Sin encabezados</span>
+                </nav>
+            </div>
+            
+             <!-- PANEL: PROJECTS (Arbol) -->
+             <div x-show="mode === 'projects'" class="p-2 text-sm text-slate-400">
+                <div class="pl-2 py-2 hover:text-white cursor-pointer"><i class="ph-fill ph-folder-open mr-2"></i> Proyectos</div>
+             </div>
+
+        </div>
+    </aside>
+
+
+    <!-- 3. ÁREA CENTRAL -->
+    <main class="flex-1 flex flex-col relative bg-[#0f1117] transition-all">
+        
+        <!-- Header -->
+        <header class="h-14 flex items-center justify-between px-8 border-b border-white/5 shrink-0">
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+                <span x-text="modeDisplay"></span>
+                <i class="ph-bold ph-caret-right text-xs"></i>
+                <!-- Título editable en el header si es Inbox -->
+                <span class="text-white truncate max-w-xs" x-text="currentNote.title"></span>
+                
+                <!-- Badge de Inbox -->
+                <span x-show="isInboxNote" class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs border border-amber-500/30 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Inbox
+                </span>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button x-show="isInboxNote" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded transition-colors flex items-center gap-1">
+                    <i class="ph-bold ph-folder-notch-plus"></i> Clasificar
+                </button>
+                <button @click="zenMode = !zenMode" class="text-slate-500 hover:text-white transition-colors">
+                    <i :class="zenMode ? 'ph-fill ph-arrows-in-line-horizontal' : 'ph-fill ph-arrows-out-line-horizontal'"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto relative no-scrollbar">
+            
+            <!-- VISTA: DASHBOARD -->
+            <div x-show="mode === 'dashboard'" class="max-w-4xl mx-auto py-16 px-8 fade-in">
+                <h1 class="text-3xl font-light text-white mb-8 text-center">¿Qué quieres capturar?</h1>
+
+                <!-- OMNIBAR DE CAPTURA RÁPIDA -->
+                <div class="relative group max-w-2xl mx-auto">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-500 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-500"></div>
+                    <div class="relative bg-[#1a1d26] rounded-xl border border-white/10 shadow-2xl">
+                        <!-- Textarea que crece -->
+                        <textarea 
+                            x-model="quickInput"
+                            @keydown.enter.prevent="handleQuickCapture($event)"
+                            placeholder="Escribe una idea rápida, pega un texto o busca..." 
+                            class="w-full bg-transparent border-none text-white text-lg px-6 py-4 focus:ring-0 placeholder-slate-500 font-light resize-none h-20"
+                        ></textarea>
+                        
+                        <div class="px-4 py-2 flex justify-between items-center border-t border-white/5 bg-[#15171e] rounded-b-xl">
+                            <div class="flex gap-2 text-xs text-slate-500">
+                                <span class="bg-[#252836] px-2 py-1 rounded">Enter para capturar</span>
+                                <span class="bg-[#252836] px-2 py-1 rounded">/ para comandos</span>
+                            </div>
+                            <button @click="handleQuickCapture()" class="text-indigo-400 hover:text-white transition-colors">
+                                <i class="ph-fill ph-arrow-right text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumen rápido -->
+                <div class="mt-16 grid grid-cols-3 gap-6 max-w-4xl mx-auto">
+                    <div class="text-center p-4 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
+                        <div class="text-2xl font-bold text-white mb-1">3</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-widest">En Inbox</div>
+                    </div>
+                    <div class="text-center p-4 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
+                        <div class="text-2xl font-bold text-white mb-1">12</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-widest">En Proceso</div>
+                    </div>
+                    <div class="text-center p-4 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
+                        <div class="text-2xl font-bold text-white mb-1">85%</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-widest">Salud Mental</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA: EDITOR / INBOX / WRITER -->
+            <div x-show="mode === 'writer' || mode === 'inbox'" class="h-full flex flex-col fade-in">
+                
+                <!-- Aviso de Inbox (Banner superior opcional) -->
+                <div x-show="isInboxNote" class="bg-amber-500/10 border-b border-amber-500/20 px-8 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-amber-400 text-sm">
+                        <i class="ph-fill ph-info"></i>
+                        <span>Esta es una nota rápida sin clasificar. La IA ha sugerido un título.</span>
+                    </div>
+                    <button class="text-xs text-amber-300 hover:text-white underline decoration-amber-500/50">Mover a proyecto</button>
+                </div>
+
+                <div class="flex-1 py-12 px-8 editor-paper">
+                    <!-- Título -->
+                    <input type="text" x-model="currentNote.title" 
+                           class="w-full bg-transparent text-4xl font-bold text-white mb-6 border-none focus:ring-0 placeholder-slate-600 outline-none leading-tight"
+                           placeholder="Título de la nota...">
+
+                    <!-- Cuerpo (Editable) -->
+                    <div class="serif-text text-lg leading-relaxed text-[#d1d5db] space-y-6 outline-none min-h-[50vh]" contenteditable="true" x-ref="editorBody">
+                        <!-- El contenido se inyecta aquí vía Alpine -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+
+    <!-- 4. PANEL DERECHO (AI) -->
+    <aside class="w-80 bg-[#13151b] border-l border-white/5 flex flex-col shrink-0 relative z-20" :class="zenMode ? '-mr-80 opacity-0' : ''">
+         <div class="h-14 flex items-center px-6 border-b border-white/5 justify-between bg-[#13151b]">
+            <span class="text-xs font-bold text-indigo-400 uppercase flex items-center gap-2">Asistente</span>
+        </div>
+        <div class="p-6">
+            <div x-show="isInboxNote" class="bg-[#1e222e] rounded-xl p-4 border border-amber-500/20 relative">
+                <p class="text-sm text-slate-300 mb-3">
+                    Analicé tu nota rápida. Parece tratar sobre <b>Frontend Architecture</b>.
+                </p>
+                <p class="text-xs text-slate-500 mb-3">¿Quieres que la mueva a:</p>
+                <div class="flex flex-col gap-2">
+                    <button class="text-left px-3 py-2 rounded bg-slate-800 hover:bg-indigo-600/20 border border-slate-700 hover:border-indigo-500 text-xs text-slate-300 transition-colors">
+                        <i class="ph-bold ph-folder mr-1"></i> Proyectos / Dev
+                    </button>
+                     <button class="text-left px-3 py-2 rounded bg-slate-800 hover:bg-indigo-600/20 border border-slate-700 hover:border-indigo-500 text-xs text-slate-300 transition-colors">
+                        <i class="ph-bold ph-folder mr-1"></i> Recursos / Librerías
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        function appData() {
+            return {
+                mode: 'dashboard', 
+                zenMode: false,
+                quickInput: '',
+                isInboxNote: false,
+                
+                // Modelo de nota actual
+                currentNote: {
+                    title: '',
+                    body: ''
+                },
+
+                get modeDisplay() {
+                    const t = { 'dashboard': 'Inicio', 'projects': 'Proyectos', 'writer': 'Editor', 'inbox': 'Bandeja de Entrada' };
+                    return t[this.mode];
+                },
+                get leftPanelTitle() {
+                    const t = { 'dashboard': 'Resumen', 'projects': 'Estructura', 'writer': 'Contenido', 'inbox': 'Pendientes' };
+                    return t[this.mode];
+                },
+
+                setMode(m) {
+                    this.mode = m;
+                    // Resetear estado de inbox si salimos de writer/inbox a dashboard
+                    if (m === 'dashboard') {
+                        this.isInboxNote = false;
+                        this.currentNote = { title: '', body: '' };
+                    }
+                    if (m === 'inbox') {
+                        // Simular cargar la primera nota del inbox
+                        this.openInboxItem(1);
+                    }
+                },
+
+                handleQuickCapture(e) {
+                    if (this.quickInput.trim() === '') return;
+
+                    // 1. Detectar si es comando o contenido
+                    // Aquí asumimos contenido para Quick Note
+                    const content = this.quickInput;
+                    
+                    // 2. Generar título preliminar (Simulación IA)
+                    const tempTitle = content.split(' ').slice(0, 5).join(' ') + '...';
+                    const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                    // 3. Configurar estado
+                    this.currentNote = {
+                        title: `Nota rápida ${timestamp}`, // O tempTitle
+                        body: content
+                    };
+                    
+                    // 4. Cambiar UI
+                    this.isInboxNote = true;
+                    this.mode = 'inbox'; // O 'writer', visualmente similar pero 'inbox' activa el panel izquierdo correcto
+                    
+                    // 5. Inyectar en el editor (simulado)
+                    setTimeout(() => {
+                        this.$refs.editorBody.innerText = content;
+                    }, 50);
+
+                    // 6. Limpiar input
+                    this.quickInput = '';
+                },
+
+                openInboxItem(id) {
+                    this.isInboxNote = true;
+                    this.mode = 'inbox';
+                    this.currentNote = {
+                        title: 'Análisis de Tiptap',
+                        body: 'Investigar cómo integrar extensiones personalizadas en Tiptap para el soporte de IA...'
+                    };
+                    setTimeout(() => {
+                        this.$refs.editorBody.innerText = this.currentNote.body;
+                    }, 50);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

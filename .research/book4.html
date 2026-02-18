@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge OS - Zen Writer Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-obsidian: #090a0f;
+            --paper-slate: #1e2029;
+            --accent-cyan: #22d3ee;
+            --ghost-cyan: rgba(34, 211, 238, 0.03);
+        }
+
+        body { 
+            background-color: var(--bg-obsidian); 
+            color: #94a3b8; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        .serif { font-family: 'Crimson Pro', serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* 1. NAVEGADOR DE PÁGINAS (IZQUIERDA) - Refinado */
+        .page-strip {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 0;
+            gap: 2rem;
+            background: linear-gradient(90deg, rgba(0,0,0,0.2) 0%, transparent 100%);
+            z-index: 50;
+        }
+
+        .thumb-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            position: relative;
+        }
+
+        .thumb-box {
+            width: 54px;
+            height: 76px;
+            background: var(--paper-slate);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Simulación de líneas de texto en la miniatura */
+        .thumb-box::before {
+            content: "";
+            position: absolute;
+            top: 10px; left: 10px; right: 10px; bottom: 10px;
+            background-image: linear-gradient(transparent 50%, rgba(34, 211, 238, 0.1) 50%);
+            background-size: 100% 6px;
+        }
+
+        .thumb-unit.active .thumb-box {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 25px rgba(34, 211, 238, 0.15);
+            transform: scale(1.15) translateX(5px);
+        }
+
+        .add-btn-mini {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .add-btn-mini:hover { 
+            background: var(--accent-cyan); 
+            color: black; 
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        /* 2. ESCENARIO CENTRAL (EL PAPEL) - Profesional */
+        .stage {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 0;
+            overflow-y: auto;
+        }
+        .stage::-webkit-scrollbar { display: none; }
+
+        .active-page {
+            width: 21cm;
+            min-height: 29.7cm;
+            background: var(--paper-slate);
+            padding: 3.5cm 3cm;
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
+            position: relative;
+            z-index: 20;
+            color: #e2e8f0;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        /* PÁGINAS GHOST (ARRIBA Y ABAJO) - Elegantes */
+        .ghost-page {
+            width: 21cm;
+            height: 140px;
+            background: linear-gradient(to bottom, transparent, var(--ghost-cyan));
+            border: 1px solid rgba(34, 211, 238, 0.05);
+            position: relative;
+            filter: blur(2px);
+            opacity: 0.4;
+            transition: opacity 0.3s;
+        }
+        .ghost-page.bottom { background: linear-gradient(to top, transparent, var(--ghost-cyan)); }
+        .ghost-page:hover { opacity: 0.6; }
+
+        .insertion-divider {
+            width: 21cm;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.2), transparent);
+            margin: 1.5rem 0;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .add-btn-main {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--bg-obsidian);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+            transition: all 0.3s;
+        }
+        .add-btn-main:hover { transform: scale(1.2); background: var(--accent-cyan); color: black; }
+
+        /* 3. NAVEGACIÓN RÁPIDA (DERECHA) - Minimalista */
+        .fast-nav {
+            position: fixed;
+            right: 4rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15vh;
+            z-index: 50;
+        }
+        .nav-arrow {
+            font-size: 1.5rem;
+            color: rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .nav-arrow:hover { color: var(--accent-cyan); transform: translateY(-5px); }
+        .nav-arrow.down:hover { transform: translateY(5px); }
+
+        /* 4. LABORATORIO (STICKY NOTES - PRESERVADAS) */
+        .margin-note {
+            position: absolute;
+            right: -280px;
+            width: 240px;
+            font-size: 0.8rem;
+            padding: 1.25rem;
+            background: rgba(34, 211, 238, 0.03);
+            backdrop-filter: blur(8px);
+            border-left: 3px solid var(--accent-cyan);
+            border-radius: 0 0.75rem 0.75rem 0;
+            color: #a5b4fc;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.3);
+        }
+
+        /* Cursor Custom */
+        .cursor-writer {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: var(--accent-cyan);
+            margin-left: 2px;
+            animation: blink 1s infinite;
+            vertical-align: middle;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="{ lens: 'writer', activePage: 2 }">
+
+    <!-- 1. Paginación Lateral (Basada en tu esquema) -->
+    <aside class="page-strip" x-show="lens === 'writer'">
+        <div class="thumb-unit">
+             <div class="add-btn-mini"><i class="ph-bold ph-plus"></i></div>
+        </div>
+        <template x-for="p in [1, 2, 3, 4, 5]">
+            <div class="thumb-unit" :class="activePage === p ? 'active' : ''">
+                <div class="thumb-box" @click="activePage = p"></div>
+                <span class="text-[9px] font-bold tracking-widest opacity-20 uppercase mt-1">Folio 0<span x-text="p"></span></span>
+                <div class="add-btn-mini mt-2"><i class="ph-bold ph-plus"></i></div>
+            </div>
+        </template>
+    </aside>
+
+    <!-- 2. Escenario de Escritura -->
+    <main class="stage">
+        
+        <!-- Ghost Page Superior -->
+        <div class="ghost-page top" x-show="lens === 'writer'"></div>
+        
+        <!-- Corte de Página con Inserción -->
+        <div class="insertion-divider" x-show="lens === 'writer'">
+            <div class="add-btn-main"><i class="ph-bold ph-plus"></i></div>
+        </div>
+
+        <!-- PÁGINA ACTIVA (El corazón de tu idea) -->
+        <article class="active-page serif">
+            
+            <header class="mb-12">
+                <p class="mono text-[10px] uppercase tracking-[0.4em] text-cyan-500/50 mb-4">Proyecto: El Nombre del Viento</p>
+                <h2 class="text-4xl font-semibold italic text-white/90">Capítulo II: Sombras en el Camino</h2>
+            </header>
+            
+            <div class="text-xl leading-relaxed space-y-8 outline-none" contenteditable="true">
+                <p class="relative">
+                    Hacía calor en la posada Roca de Guía. Era el calor sofocante y sordo de los finales de otoño. Era un calor hecho de silencios, y el silencio de la posada era un silencio triple.
+                    
+                    <!-- LABORATORIO (Preservado a solicitud) -->
+                    <span x-show="lens === 'study'" class="margin-note top-0">
+                        <b class="block mb-2 text-cyan-400 tracking-wider uppercase text-[10px]">Asistente de Análisis</b>
+                        Este formato ha sido preservado íntegramente: posición marginal derecha, borde de color y fondo translúcido. 
+                    </span>
+                </p>
+
+                <p>
+                    El silencio más obvio era una calma hueca y desolada, hecha de las cosas que faltaban. Si hubiera soplado el viento, este habría suspirado entre las ramas.
+                </p>
+
+                <p>
+                    Kote se encontraba tras la barra, frotando un trozo de madera. En el dibujo que trazaste, este folio gris oscuro era el protagonista. He elevado el contraste para que el texto sea "obsidiana sobre humo". <span class="cursor-writer"></span>
+                </p>
+            </div>
+
+            <!-- Numeración Editorial -->
+            <footer class="absolute bottom-12 left-0 right-0 text-center opacity-20 mono text-[10px] tracking-[0.5em]">
+                0<span x-text="activePage"></span> / 154
+            </footer>
+        </article>
+
+        <!-- Corte de Página Inferior -->
+        <div class="insertion-divider" x-show="lens === 'writer'">
+            <div class="add-btn-main"><i class="ph-bold ph-plus"></i></div>
+        </div>
+
+        <!-- Ghost Page Inferior -->
+        <div class="ghost-page bottom" x-show="lens === 'writer'"></div>
+
+    </main>
+
+    <!-- 3. Navegación Rápida (Derecha) -->
+    <nav class="fast-nav" x-show="lens === 'writer'">
+        <i class="ph-bold ph-caret-double-up nav-arrow"></i>
+        <i class="ph-bold ph-caret-double-down nav-arrow down"></i>
+    </nav>
+
+    <!-- BARRA DE ESTADO (Elegante) -->
+    <div class="fixed bottom-8 left-0 right-0 px-12 flex justify-between items-center pointer-events-none">
+        <div class="flex gap-4 items-center bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/5 pointer-events-auto">
+            <div class="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                Métrica: <span class="text-white">2,410 palabras</span>
+            </div>
+            <div class="w-px h-3 bg-white/10"></div>
+            <div class="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                Tiempo: <span class="text-white">45 min</span>
+            </div>
+        </div>
+
+        <div class="flex gap-2 pointer-events-auto">
+            <button @click="lens = 'writer'" :class="lens === 'writer' ? 'bg-cyan-500 text-black' : 'bg-white/5 text-slate-400'" class="px-5 py-2 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all">Escritor</button>
+            <button @click="lens = 'study'" :class="lens === 'study' ? 'bg-indigo-600 text-white' : 'bg-white/5 text-slate-400'" class="px-5 py-2 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all">Laboratorio</button>
+        </div>
+    </div>
+
+</body>
+</html>

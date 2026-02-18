@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Docs V2 - Centered Focus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Tipografía optimizada para lectura */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .serif-text { font-family: 'Merriweather', serif; }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        /* El "Papel" del editor */
+        .editor-paper {
+            max-width: 65ch; /* Ancho ideal de lectura (65 caracteres) */
+            margin: 0 auto;
+        }
+
+        /* Scrollbar invisible pero funcional */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-[#0f1117] text-slate-300 h-screen overflow-hidden flex" x-data="appData()">
+
+    <!-- 1. BARRA DE NAVEGACIÓN (Extrema Izquierda - Iconos) -->
+    <nav class="w-16 bg-[#0B0C10] border-r border-white/5 flex flex-col items-center py-6 z-50 shrink-0">
+        <div class="mb-8 text-indigo-500 text-3xl hover:rotate-12 transition-transform cursor-pointer"><i class="ph-fill ph-brain"></i></div>
+        
+        <div class="flex flex-col gap-4 w-full px-2">
+            <template x-for="item in navItems">
+                <button @click="setMode(item.id)" 
+                        :class="mode === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'"
+                        class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                    <i :class="item.icon" class="text-xl"></i>
+                    <!-- Tooltip -->
+                    <span class="absolute left-14 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none" x-text="item.label"></span>
+                </button>
+            </template>
+        </div>
+        
+        <div class="mt-auto mb-4">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-indigo-500 border-2 border-[#0B0C10] ring-2 ring-indigo-500/30"></div>
+        </div>
+    </nav>
+
+
+    <!-- 2. PANEL IZQUIERDO (Contexto / Estructura / Navegación Secundaria) -->
+    <!-- Este panel CAMBIA según el modo para dar uso a la izquierda -->
+    <aside class="w-64 bg-[#13151b] border-r border-white/5 flex flex-col transition-all duration-300 shrink-0" 
+           :class="zenMode ? '-ml-64 opacity-50' : ''">
+        
+        <!-- Header del Panel -->
+        <div class="h-14 flex items-center px-5 border-b border-white/5">
+            <span class="text-xs font-bold tracking-widest text-slate-500 uppercase" x-text="leftPanelTitle"></span>
+        </div>
+
+        <!-- Contenido Variable Izquierda -->
+        <div class="flex-1 overflow-y-auto no-scrollbar p-2">
+            
+            <!-- A) Si estamos en DASHBOARD: Agenda / Timeline -->
+            <div x-show="mode === 'dashboard'" class="space-y-6 p-2">
+                <div>
+                    <h4 class="text-white text-sm font-medium mb-3 flex items-center gap-2"><i class="ph-fill ph-calendar-check text-indigo-400"></i> Para hoy</h4>
+                    <div class="space-y-2">
+                        <div class="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-colors cursor-pointer group">
+                            <div class="text-xs text-indigo-300 mb-1">10:00 AM</div>
+                            <div class="text-sm text-slate-200 group-hover:text-white">Revisar Doc API</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-colors cursor-pointer group">
+                            <div class="text-xs text-orange-300 mb-1">Sin fecha</div>
+                            <div class="text-sm text-slate-200 group-hover:text-white">Investigar Tiptap</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-white text-sm font-medium mb-3 flex items-center gap-2"><i class="ph-fill ph-clock-counter-clockwise text-slate-400"></i> Historial</h4>
+                    <ul class="space-y-1 text-sm text-slate-400">
+                        <li class="px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer truncate">Setup LiteLLM</li>
+                        <li class="px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer truncate">Notas de Supabase</li>
+                        <li class="px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer truncate">Ideas Dashboard</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- B) Si estamos en PROJECTS: Árbol de Carpetas -->
+            <div x-show="mode === 'projects'" class="text-sm font-medium text-slate-400 select-none">
+                <div class="pl-2 py-2 hover:text-white cursor-pointer flex items-center gap-2"><i class="ph-fill ph-books text-slate-500"></i> Biblioteca</div>
+                
+                <!-- Carpeta Expandida -->
+                <div class="mt-1">
+                    <div class="pl-2 py-1.5 bg-indigo-500/10 text-indigo-300 rounded-md flex items-center gap-2 cursor-pointer border border-indigo-500/20">
+                        <i class="ph-fill ph-folder-open"></i> Proyectos
+                    </div>
+                    <div class="pl-6 border-l border-white/10 ml-3.5 mt-1 space-y-1">
+                        <div class="py-1.5 pl-2 text-white cursor-pointer hover:bg-white/5 rounded">Análisis Proyectos</div>
+                        <div class="py-1.5 pl-2 hover:text-white cursor-pointer hover:bg-white/5 rounded">Finanzas</div>
+                    </div>
+                </div>
+
+                <div class="pl-2 py-2 mt-1 hover:text-white cursor-pointer flex items-center gap-2"><i class="ph-fill ph-notebook text-slate-500"></i> Diario</div>
+            </div>
+
+            <!-- C) Si estamos en WRITER: Tabla de Contenido (Outline) -->
+            <div x-show="mode === 'writer'" class="p-2">
+                <div class="text-xs font-bold text-slate-500 mb-2 uppercase">En esta nota</div>
+                <nav class="space-y-1 text-sm border-l border-slate-700 ml-1 pl-3">
+                    <a href="#" class="block text-indigo-400 border-l-2 border-indigo-500 -ml-[14px] pl-3 py-1">Introducción</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1">¿Qué es LiteLLM?</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1">Configuración</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1 pl-2 text-xs">Instalación</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1 pl-2 text-xs">Variables de Entorno</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1">Conclusión</a>
+                </nav>
+
+                <div class="mt-8 pt-6 border-t border-white/5">
+                    <div class="text-xs font-bold text-slate-500 mb-2 uppercase">Referencias</div>
+                    <div class="flex flex-col gap-2">
+                         <div class="flex items-center gap-2 p-2 rounded bg-slate-800/50 text-xs text-slate-300 cursor-pointer border border-transparent hover:border-indigo-500/50">
+                            <i class="ph ph-link text-indigo-400"></i>
+                            SaaS Pricing Models
+                         </div>
+                         <div class="flex items-center gap-2 p-2 rounded bg-slate-800/50 text-xs text-slate-300 cursor-pointer border border-transparent hover:border-indigo-500/50">
+                            <i class="ph ph-link text-indigo-400"></i>
+                            OpenAI API Docs
+                         </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </aside>
+
+
+    <!-- 3. ÁREA CENTRAL (El Canvas / Stage) -->
+    <main class="flex-1 flex flex-col relative bg-[#0f1117] transition-all">
+        
+        <!-- Topbar Minimalista -->
+        <header class="h-14 flex items-center justify-between px-8 border-b border-white/5 shrink-0">
+            <!-- Breadcrumbs -->
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+                <span x-text="mode === 'writer' ? 'Proyectos' : 'Inicio'"></span>
+                <i class="ph-bold ph-caret-right text-xs"></i>
+                <span class="text-white" x-text="pageTitle"></span>
+            </div>
+
+            <!-- Zen Mode Toggle -->
+            <button @click="zenMode = !zenMode" class="text-slate-500 hover:text-white transition-colors" title="Modo Zen">
+                <i :class="zenMode ? 'ph-fill ph-arrows-in-line-horizontal' : 'ph-fill ph-arrows-out-line-horizontal'"></i>
+            </button>
+        </header>
+
+        <!-- CONTENIDO SCROLLEABLE -->
+        <div class="flex-1 overflow-y-auto relative no-scrollbar">
+            
+            <!-- VISTA: DASHBOARD CENTRADO -->
+            <div x-show="mode === 'dashboard'" class="max-w-4xl mx-auto py-12 px-8 fade-in">
+                <h1 class="text-3xl font-light text-white mb-2">Buenos días, <span class="text-indigo-400 font-bold">Arquitecto.</span></h1>
+                <p class="text-slate-400 text-lg mb-8">¿En qué conocimiento quieres profundizar hoy?</p>
+
+                <!-- Omnibar Central -->
+                <div class="relative group mb-12">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                    <div class="relative flex items-center bg-[#1a1d26] rounded-lg p-1 border border-white/10">
+                        <i class="ph ph-sparkle text-indigo-400 text-xl ml-4"></i>
+                        <input type="text" placeholder="Escribe 'Nueva nota sobre FastAPI' o pregunta a tus docs..." 
+                               class="w-full bg-transparent border-none text-white text-lg px-4 py-3 focus:ring-0 placeholder-slate-600 font-light"
+                               @keydown.enter="setMode('writer')">
+                        <div class="pr-4 flex gap-2">
+                             <span class="text-xs bg-[#252836] text-slate-400 px-2 py-1 rounded border border-white/5">⌘K</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjetas de Inicio -->
+                <div class="grid grid-cols-2 gap-6">
+                    <div @click="setMode('projects')" class="p-6 rounded-2xl bg-[#15171e] border border-white/5 hover:border-indigo-500/50 cursor-pointer transition-all group hover:-translate-y-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400"><i class="ph-fill ph-folder-open text-xl"></i></div>
+                            <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-full">Activo</span>
+                        </div>
+                        <h3 class="text-xl text-white font-medium mb-1 group-hover:text-indigo-400 transition-colors">Análisis de Proyectos</h3>
+                        <p class="text-sm text-slate-400">12 notas modificadas esta semana. Última edición hace 2h.</p>
+                    </div>
+
+                    <div class="p-6 rounded-2xl bg-[#15171e] border border-white/5 hover:border-emerald-500/50 cursor-pointer transition-all group hover:-translate-y-1">
+                         <div class="flex items-center justify-between mb-4">
+                            <div class="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400"><i class="ph-fill ph-magic-wand text-xl"></i></div>
+                            <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded-full">Sugerencia</span>
+                        </div>
+                        <h3 class="text-xl text-white font-medium mb-1 group-hover:text-emerald-400 transition-colors">Repaso: Docker</h3>
+                        <p class="text-sm text-slate-400">La IA sugiere fusionar tus notas de "Docker" con "Despliegue".</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA: WRITER (EL FOCO PRINCIPAL) -->
+            <!-- Aquí aplicamos la teoría de "Centrado" -->
+            <div x-show="mode === 'writer'" class="h-full flex flex-col fade-in">
+                
+                <div class="flex-1 py-12 px-8 editor-paper">
+                    <!-- Área de Título -->
+                    <input type="text" value="Setup LiteLLM en Python" 
+                           class="w-full bg-transparent text-4xl font-bold text-white mb-8 border-none focus:ring-0 placeholder-slate-600 outline-none leading-tight"
+                           placeholder="Título de la nota...">
+
+                    <!-- Área de Texto (Simulación Tiptap) -->
+                    <div class="serif-text text-lg leading-relaxed text-[#d1d5db] space-y-6 outline-none" contenteditable="true">
+                        <p>LiteLLM funciona como un proxy gateway unificado para llamar a más de 100 modelos (OpenAI, Anthropic, Azure, etc.). Es la pieza fundamental para desacoplar nuestra lógica de negocio del proveedor de IA.</p>
+                        
+                        <h3 class="text-xl font-bold text-white mt-8 mb-4 font-sans">Configuración Básica</h3>
+                        <p>Para iniciarlo, necesitamos instalar la librería con soporte para el servidor proxy.</p>
+                        
+                        <div class="bg-[#1a1d26] p-4 rounded-lg border border-white/10 font-mono text-sm text-emerald-400 my-6 relative group">
+                            <button class="absolute top-2 right-2 text-slate-500 hover:text-white opacity-0 group-hover:opacity-100"><i class="ph ph-copy"></i></button>
+                            pip install 'litellm[proxy]'<br>
+                            litellm --model gpt-3.5-turbo
+                        </div>
+
+                        <p>La característica principal que buscamos es el <span class="bg-indigo-500/20 text-indigo-300 px-1 rounded cursor-pointer border-b border-indigo-500/40">Fallback</span>. Si un modelo falla por rate-limit, el sistema debe saltar al siguiente automáticamente sin lanzar excepción a la aplicación cliente.</p>
+
+                        <p class="text-slate-500 italic mt-8">Presiona ' / ' para comandos IA...</p>
+                    </div>
+                    
+                    <!-- Espacio al final para scroll cómodo -->
+                    <div class="h-32"></div>
+                </div>
+
+                <!-- Barra de herramientas flotante (Estilo Medium/Notion) -->
+                <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-[#1e222e] border border-white/10 rounded-full px-4 py-2 flex items-center gap-4 shadow-2xl shadow-black/50 z-40 transition-all duration-300"
+                     :class="zenMode ? 'opacity-0 hover:opacity-100 translate-y-10 hover:translate-y-0' : ''">
+                    <span class="text-xs text-slate-500 mr-2 border-r border-white/10 pr-4">420 palabras</span>
+                    <button class="text-slate-400 hover:text-white"><i class="ph-bold ph-text-b"></i></button>
+                    <button class="text-slate-400 hover:text-white"><i class="ph-bold ph-text-italic"></i></button>
+                    <button class="text-slate-400 hover:text-white"><i class="ph-bold ph-link"></i></button>
+                    <div class="w-px h-4 bg-white/10"></div>
+                    <button class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 text-sm font-medium"><i class="ph-fill ph-sparkle"></i> Pedir a IA</button>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+
+    <!-- 4. PANEL DERECHO (Asistente IA / Herramientas) -->
+    <!-- Colapsable para Modo Zen -->
+    <aside class="w-80 bg-[#13151b] border-l border-white/5 flex flex-col transition-all duration-300 shrink-0 relative z-20"
+           :class="zenMode ? '-mr-80 opacity-0' : ''">
+        
+        <div class="h-14 flex items-center px-6 border-b border-white/5 justify-between bg-[#13151b]">
+            <span class="text-xs font-bold text-indigo-400 uppercase flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Copiloto Activo
+            </span>
+            <button class="text-slate-500 hover:text-white"><i class="ph ph-dots-three"></i></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            
+            <!-- Chat Bubble IA -->
+            <div class="bg-[#1e222e] rounded-xl p-4 border border-indigo-500/20 shadow-lg shadow-indigo-900/5 relative">
+                <div class="absolute -left-2 top-4 w-2 h-2 bg-[#1e222e] border-l border-b border-indigo-500/20 transform rotate-45"></div>
+                <p class="text-sm text-slate-200 leading-relaxed">
+                    Estás escribiendo sobre <b>LiteLLM</b>. 
+                </p>
+                <p class="text-sm text-slate-400 mt-2">
+                    En tu nota de "SaaS Pricing" (hace 3 días) mencionaste la necesidad de limitar costos.
+                </p>
+                <p class="text-sm text-slate-200 mt-2 font-medium">
+                    ¿Quieres que inserte el snippet de configuración de `BudgetManager`?
+                </p>
+                
+                <div class="mt-3 flex gap-2">
+                    <button class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-1.5 rounded transition-colors">Insertar Código</button>
+                    <button class="px-3 bg-white/5 hover:bg-white/10 text-slate-300 text-xs py-1.5 rounded transition-colors">No</button>
+                </div>
+            </div>
+
+            <!-- Contexto Relacionado -->
+            <div class="pt-4 border-t border-white/5">
+                <h5 class="text-xs font-bold text-slate-500 uppercase mb-3">Conceptos Relacionados</h5>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs text-slate-300 hover:border-indigo-500 cursor-pointer">API Gateway</span>
+                    <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs text-slate-300 hover:border-indigo-500 cursor-pointer">Python Async</span>
+                    <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs text-slate-300 hover:border-indigo-500 cursor-pointer">OpenAI Keys</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Input Chat Rápido -->
+        <div class="p-4 border-t border-white/5 bg-[#13151b]">
+            <div class="relative">
+                <input type="text" placeholder="Pregunta algo..." class="w-full bg-[#0f1117] border border-white/10 rounded-lg py-2 pl-3 pr-8 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors">
+                <button class="absolute right-2 top-2 text-indigo-500 hover:text-white"><i class="ph-fill ph-paper-plane-right"></i></button>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        function appData() {
+            return {
+                mode: 'dashboard', 
+                zenMode: false,
+                navItems: [
+                    { id: 'dashboard', icon: 'ph-fill ph-squares-four', label: 'Inicio' },
+                    { id: 'projects', icon: 'ph-fill ph-folder-notch', label: 'Proyectos' },
+                    { id: 'writer', icon: 'ph-fill ph-pen-nib', label: 'Editor' },
+                    { id: 'search', icon: 'ph-bold ph-magnifying-glass', label: 'Buscar' },
+                ],
+                get pageTitle() {
+                    const t = { 'dashboard': 'Centro de Mando', 'projects': 'Explorador', 'writer': 'Setup LiteLLM en Python' };
+                    return t[this.mode];
+                },
+                get leftPanelTitle() {
+                    const t = { 'dashboard': 'Agenda Personal', 'projects': 'Estructura', 'writer': 'Tabla de Contenido' };
+                    return t[this.mode];
+                },
+                setMode(m) {
+                    this.mode = m;
+                    // Auto entrar/salir de Zen Mode según conveniencia (opcional)
+                    if(m === 'writer') this.zenMode = false; 
+                }
+            }
+        }
+    </script>
+</body>
+</html>

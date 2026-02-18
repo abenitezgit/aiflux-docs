@@ -1,0 +1,111 @@
+<!-- templates/modules/cockpit_pane.html -->
+<div class="max-w-5xl mx-auto py-12 px-8 fade-in-up">
+    
+    <!-- Briefing -->
+    <div class="mb-10">
+        <h1 class="text-3xl font-light text-white mb-2">Hola, <span class="font-medium text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">{{ user.nombre }}.</span></h1>
+        <p class="text-slate-400 text-lg flex items-center gap-2">
+            <i class="ph-fill ph-sparkle text-indigo-400"></i>
+            Tienes <span class="text-white font-bold">{{ agenda|length }}</span> tareas pendientes para hoy.
+        </p>
+    </div>
+
+    <!-- OMNIBARRA -->
+    <div class="relative group mb-12">
+        <!-- Efecto de resplandor (Glow) -->
+        <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+        
+        <!-- templates/modules/cockpit_pane.html -->
+        <div class="relative bg-[#1a1d26] rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+            x-data="{ content: '' }">
+            
+            <textarea 
+                x-model="content"
+                placeholder="¿Qué estás pensando? (Shift + Enter para enviar)" 
+                class="w-full bg-transparent border-none text-white text-lg px-6 py-5 focus:ring-0 placeholder-slate-500 font-light resize-none h-32"
+                
+                @keydown.enter.shift.prevent="
+                    if(content.trim().length > 0) {
+                        aiLoading = true; // <-- ACTIVAR PUNTITOS
+                        // 1. Enviamos la petición de forma asíncrona e inmediata
+                        htmx.ajax('POST', '/inbox/captura', { 
+                            values: { contenido: content },
+                            handler: (xhr) => {
+                                aiLoading = false; // <-- DESACTIVAR PUNTITOS al completar
+                                // 2. Dispara evento para actualizar el contador del badge
+                                document.body.dispatchEvent(new CustomEvent('update-inbox-count'));
+                            }
+                        });
+                        // 3. Limpiamos el campo al instante (Sensación de velocidad)
+                        content = '';
+                    }
+                "
+            ></textarea>
+
+            <!-- PIE DE PÁGINA -->
+            <div class="px-4 py-2 bg-[#15171e] flex justify-between items-center border-t border-white/5">
+                <div class="flex gap-4 text-[10px] text-slate-500 font-mono">
+                    <span class="flex items-center gap-1.5 hover:text-white cursor-pointer transition-colors group/btn">
+                        <kbd class="bg-[#252836] px-1.5 py-0.5 rounded text-slate-400 border border-white/5">⌘K</kbd> 
+                        <span>Buscar</span>
+                    </span>
+                    <span class="flex items-center gap-1.5 text-slate-400">
+                        <kbd class="bg-[#252836] px-1.5 py-0.5 rounded border border-white/5">Shift + ↵</kbd> 
+                        <span>Enviar</span>
+                    </span>
+                </div>
+
+                <!-- Botón de envío manual corregido -->
+                <button class="text-slate-500 hover:text-indigo-400 transition-colors"
+                        @click="if(content.trim().length > 0) { htmx.ajax('POST', '/inbox/captura', { values: { contenido: content } }); content = ''; }">
+                    <i class="ph-bold ph-arrow-return-left"></i>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- GRID DE TARJETAS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <!-- Card Proyectos -->
+        <div class="bg-[#15171e] p-5 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer group">
+            <div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">En Foco</div>
+            <h3 class="text-white text-lg font-medium mb-1">Proyectos Activos</h3>
+            <p class="text-xs text-slate-500">{{ proyectos|length }} proyectos en curso.</p>
+        </div>
+
+        <!-- Card Agenda -->
+        <div class="bg-[#15171e] p-5 rounded-2xl border border-white/5 hover:border-amber-500/30 transition-all cursor-pointer">
+            <div class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">Agenda</div>
+            <div class="space-y-2">
+                {% for tarea in agenda[:2] %}
+                <div class="flex items-center gap-2 text-xs text-slate-300">
+                    <i class="ph ph-circle text-slate-600"></i>
+                    <span class="truncate">{{ tarea.titulo }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Card IA Jardinero -->
+        <div class="bg-[#15171e] p-5 rounded-2xl border border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer">
+            <div class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Jardinero IA</div>
+            <p class="text-xs text-slate-500">Analizando 3 notas sin clasificar en tu Inbox...</p>
+        </div>
+    </div>
+
+    <!-- NOTAS RECIENTES -->
+    <div class="mt-12">
+        <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-6">Trabajo Reciente</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {% for nota in recientes %}
+            <div class="bg-[#15171e] p-5 rounded-xl border border-white/5 hover:border-indigo-500/40 transition-all cursor-pointer group">
+                <h4 class="text-white font-medium mb-2 group-hover:text-indigo-400">{{ nota.titulo or 'Sin título' }}</h4>
+                <p class="text-slate-500 text-xs line-clamp-2">
+                    {{ nota.tema.cuaderno.nombre }} / {{ nota.tema.nombre }}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>

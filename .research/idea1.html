@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Knowledge OS</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Iconos Phosphor -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Efecto Glassmorphism */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Animación suave */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Simulando el editor Tiptap */
+        .tiptap-mock {
+            outline: none;
+            line-height: 1.8;
+            font-size: 1.1rem;
+        }
+        .tiptap-mock p { margin-bottom: 1em; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans h-screen overflow-hidden selection:bg-indigo-500 selection:text-white" x-data="appData()">
+
+    <div class="flex h-full">
+        
+        <!-- 1. BARRA LATERAL (MODOS / LENTES) -->
+        <!-- En lugar de carpetas, mostramos "Intenciones" -->
+        <aside class="w-20 flex flex-col items-center py-8 border-r border-slate-800 bg-slate-950 z-20">
+            <div class="mb-8 text-indigo-500 text-3xl font-bold">
+                <i class="ph ph-brain"></i>
+            </div>
+
+            <nav class="flex flex-col gap-6 w-full">
+                <!-- Botón Dashboard -->
+                <button @click="setMode('dashboard')" 
+                        :class="mode === 'dashboard' ? 'text-white border-l-2 border-indigo-500 bg-indigo-500/10' : 'text-slate-500 hover:text-indigo-400'"
+                        class="h-12 w-full flex items-center justify-center transition-all relative group">
+                    <i class="ph ph-squares-four text-2xl"></i>
+                    <span class="absolute left-16 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700">Inicio</span>
+                </button>
+
+                <!-- Botón Proyectos (Estructurado) -->
+                <button @click="setMode('projects')" 
+                        :class="mode === 'projects' ? 'text-white border-l-2 border-indigo-500 bg-indigo-500/10' : 'text-slate-500 hover:text-indigo-400'"
+                        class="h-12 w-full flex items-center justify-center transition-all relative group">
+                    <i class="ph ph-folder-notch-open text-2xl"></i>
+                    <span class="absolute left-16 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700">Proyectos Activos</span>
+                </button>
+
+                <!-- Botón Escritor (Flow) -->
+                <button @click="setMode('writer')" 
+                        :class="mode === 'writer' ? 'text-white border-l-2 border-indigo-500 bg-indigo-500/10' : 'text-slate-500 hover:text-indigo-400'"
+                        class="h-12 w-full flex items-center justify-center transition-all relative group">
+                    <i class="ph ph-pen-nib text-2xl"></i>
+                    <span class="absolute left-16 bg-slate-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-slate-700">Modo Escritura</span>
+                </button>
+            </nav>
+
+            <div class="mt-auto flex flex-col gap-4">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-400 to-blue-500 flex items-center justify-center text-slate-900 font-bold text-xs cursor-pointer shadow-lg shadow-indigo-500/20">YO</div>
+            </div>
+        </aside>
+
+
+        <!-- 2. ÁREA PRINCIPAL -->
+        <main class="flex-1 flex flex-col relative overflow-hidden">
+            
+            <!-- Header Flotante / Barra Inteligente -->
+            <header class="h-20 flex items-center px-8 border-b border-slate-800/50 justify-between bg-slate-900/50 backdrop-blur-sm z-10">
+                <div class="flex flex-col">
+                    <h2 class="text-lg font-medium text-white" x-text="pageTitle"></h2>
+                    <span class="text-xs text-slate-500" x-text="subTitle"></span>
+                </div>
+
+                <!-- OMNIBAR: El corazón de la App -->
+                <div class="flex-1 max-w-2xl mx-8 relative">
+                    <div class="relative group">
+                        <i class="ph ph-sparkle text-indigo-400 absolute left-4 top-3 animate-pulse"></i>
+                        <input type="text" 
+                               x-model="searchQuery"
+                               @keydown.enter="handleSmartInput()"
+                               placeholder="Pregunta a tu notas, o escribe 'Nuevo tema sobre Python'..." 
+                               class="w-full bg-slate-800/50 border border-slate-700 rounded-full py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder-slate-500 text-white shadow-lg shadow-black/20">
+                        <div class="absolute right-3 top-2.5 text-xs text-slate-500 border border-slate-700 px-1.5 rounded">⌘K</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 text-slate-400">
+                    <div class="flex items-center gap-1 text-xs border border-slate-700 px-2 py-1 rounded-full bg-slate-800">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        <span>LiteLLM: Activo</span>
+                    </div>
+                </div>
+            </main>
+            </header>
+
+            <!-- CONTENIDO DINÁMICO (HTMX Swap simulation) -->
+            <div class="flex-1 overflow-y-auto p-8 relative">
+                
+                <!-- VISTA 1: DASHBOARD (El "Radar") -->
+                <div x-show="mode === 'dashboard'" class="fade-in space-y-8 max-w-5xl mx-auto">
+                    
+                    <!-- Saludo IA -->
+                    <div class="flex items-start gap-4 p-6 glass rounded-2xl border-l-4 border-indigo-500">
+                        <div class="p-2 bg-indigo-500/20 rounded-lg text-indigo-400"><i class="ph ph-robot text-2xl"></i></div>
+                        <div>
+                            <h3 class="text-xl font-medium text-white mb-1">Buenos días.</h3>
+                            <p class="text-slate-400 leading-relaxed">
+                                Veo que ayer estuviste trabajando intensamente en <span class="text-indigo-300 cursor-pointer hover:underline">Análisis de Proyectos</span>. 
+                                Tienes una nota sobre <b>"Documentación de IA"</b> que dejaste abierta. ¿Quieres continuar ahí o revisamos tus tareas pendientes?
+                            </p>
+                            <div class="mt-4 flex gap-3">
+                                <button @click="setMode('projects')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors shadow-lg shadow-indigo-500/30">Continuar editando</button>
+                                <button class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm rounded-lg transition-colors">Crear resumen diario</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grid de Sugerencias -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        <!-- Card 1: Serendipia -->
+                        <div class="glass p-5 rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer group">
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-bold text-amber-400 uppercase tracking-wider">Conexión</span>
+                                <i class="ph ph-link text-slate-500 group-hover:text-amber-400"></i>
+                            </div>
+                            <h4 class="text-white font-medium mb-2">Docker & IA</h4>
+                            <p class="text-sm text-slate-400">Encontré similitudes entre tu nota de "Despliegue" y "Modelos Locales". ¿Deberían fusionarse?</p>
+                        </div>
+
+                        <!-- Card 2: Recordatorio -->
+                        <div class="glass p-5 rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer group">
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Mantenimiento</span>
+                                <i class="ph ph-recycle text-slate-500 group-hover:text-emerald-400"></i>
+                            </div>
+                            <h4 class="text-white font-medium mb-2">Limpieza de Tags</h4>
+                            <p class="text-sm text-slate-400">Tienes 5 notas sin etiquetar creadas esta semana. La IA puede sugerir etiquetas.</p>
+                        </div>
+
+                        <!-- Card 3: Proyecto Activo -->
+                        <div @click="setMode('projects')" class="glass p-5 rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer group border border-indigo-500/30">
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider">En Foco</span>
+                                <i class="ph ph-arrow-right text-slate-500 group-hover:text-indigo-400"></i>
+                            </div>
+                            <h4 class="text-white font-medium mb-2">Biblioteca Proyectos</h4>
+                            <p class="text-sm text-slate-400">Actividad reciente: 12 notas nuevas en "Documentación de IA".</p>
+                        </div>
+
+                    </div>
+                    
+                    <!-- Sección Reciente (Masonry simulado) -->
+                    <div>
+                        <h3 class="text-slate-400 text-sm font-bold uppercase tracking-widest mb-4">Notas Recientes</h3>
+                        <div class="columns-2 gap-6 space-y-6">
+                            <div class="break-inside-avoid bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
+                                <h4 class="text-white font-bold mb-2">Configuración LiteLLM</h4>
+                                <p class="text-slate-400 text-sm">Snippet para configurar el fallback entre OpenAI y Anthropic...</p>
+                                <div class="mt-3 flex gap-2">
+                                    <span class="text-xs bg-slate-900 px-2 py-1 rounded text-slate-500">#python</span>
+                                    <span class="text-xs bg-slate-900 px-2 py-1 rounded text-slate-500">#ai</span>
+                                </div>
+                            </div>
+                            <div class="break-inside-avoid bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
+                                <h4 class="text-white font-bold mb-2">Ideas App Personal</h4>
+                                <p class="text-slate-400 text-sm">Lista de features para el dashboard. Importante integrar HTMX...</p>
+                            </div>
+                             <div class="break-inside-avoid bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
+                                <h4 class="text-white font-bold mb-2">Arquitectura Hexagonal</h4>
+                                <p class="text-slate-400 text-sm">Resumen del capítulo 4 del libro de Vernon...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VISTA 2: PROYECTOS (La estructura que mencionaste) -->
+                <div x-show="mode === 'projects'" class="fade-in h-full flex flex-col">
+                    
+                    <div class="flex gap-6 h-full">
+                        <!-- Sidebar interna del proyecto -->
+                        <div class="w-64 hidden md:block">
+                            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 pl-2">Estructura</div>
+                            <ul class="space-y-1">
+                                <li class="px-3 py-2 rounded text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"><i class="ph ph-folder mr-2"></i>Personal</li>
+                                <li class="px-3 py-2 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 cursor-pointer">
+                                    <div class="flex items-center"><i class="ph ph-folder-open mr-2"></i>Proyectos</div>
+                                    <ul class="ml-6 mt-2 space-y-1 border-l border-slate-700 pl-2">
+                                        <li class="text-white text-sm py-1">Análisis de Proyectos</li>
+                                        <li class="text-slate-500 text-sm py-1 hover:text-white cursor-pointer">Gestión Financiera</li>
+                                    </ul>
+                                </li>
+                                <li class="px-3 py-2 rounded text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"><i class="ph ph-folder mr-2"></i>Archivo</li>
+                            </ul>
+                        </div>
+
+                        <!-- Área de Contenido del Proyecto -->
+                        <div class="flex-1 bg-slate-800/30 rounded-2xl border border-slate-800 overflow-hidden flex flex-col">
+                            <div class="h-14 border-b border-slate-800 flex items-center px-6 justify-between bg-slate-900/50">
+                                <div class="flex items-center gap-2 text-sm text-slate-400">
+                                    <span>Proyectos</span> <i class="ph ph-caret-right"></i>
+                                    <span>Análisis</span> <i class="ph ph-caret-right"></i>
+                                    <span class="text-white font-medium">Documentación de IA</span>
+                                </div>
+                                <button class="text-indigo-400 hover:text-white text-sm flex items-center gap-1">
+                                    <i class="ph ph-plus"></i> Nueva Nota
+                                </button>
+                            </div>
+
+                            <!-- Lista de notas (Table view) -->
+                            <div class="flex-1 p-4 overflow-y-auto">
+                                <table class="w-full text-left text-sm text-slate-400">
+                                    <thead class="text-xs uppercase bg-slate-800/50 text-slate-500">
+                                        <tr>
+                                            <th class="px-4 py-3 rounded-l-lg">Título</th>
+                                            <th class="px-4 py-3">Etiquetas</th>
+                                            <th class="px-4 py-3">Actualizado</th>
+                                            <th class="px-4 py-3 rounded-r-lg">Estado IA</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-800">
+                                        <tr class="hover:bg-slate-800/50 cursor-pointer transition-colors" @click="setMode('writer')">
+                                            <td class="px-4 py-4 text-white font-medium flex items-center gap-3">
+                                                <i class="ph ph-file-text text-xl text-slate-600"></i>
+                                                Setup LiteLLM en Python
+                                            </td>
+                                            <td class="px-4 py-4"><span class="bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded text-xs border border-indigo-500/20">Dev</span></td>
+                                            <td class="px-4 py-4">Hoy, 10:30 AM</td>
+                                            <td class="px-4 py-4"><i class="ph ph-check-circle text-emerald-500 text-lg" title="Analizado"></i></td>
+                                        </tr>
+                                        <tr class="hover:bg-slate-800/50 cursor-pointer transition-colors">
+                                            <td class="px-4 py-4 text-white font-medium flex items-center gap-3">
+                                                <i class="ph ph-file-text text-xl text-slate-600"></i>
+                                                Modelos de Embedding (Supabase)
+                                            </td>
+                                            <td class="px-4 py-4"><span class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-xs">Database</span></td>
+                                            <td class="px-4 py-4">Ayer</td>
+                                            <td class="px-4 py-4"><i class="ph ph-warning-circle text-amber-500 text-lg" title="Sugerencia pendiente"></i></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VISTA 3: MODO ESCRITOR (Writer/Tiptap) -->
+                <div x-show="mode === 'writer'" class="fade-in h-full max-w-4xl mx-auto flex gap-8">
+                    
+                    <!-- Editor Principal -->
+                    <div class="flex-1 flex flex-col h-full">
+                         <!-- Toolbar Tiptap Fake -->
+                         <div class="flex items-center gap-2 mb-4 p-2 bg-slate-800 rounded-lg border border-slate-700 w-max sticky top-0 z-10">
+                            <button class="p-1.5 hover:bg-slate-700 rounded text-slate-300"><i class="ph ph-text-b"></i></button>
+                            <button class="p-1.5 hover:bg-slate-700 rounded text-slate-300"><i class="ph ph-text-italic"></i></button>
+                            <div class="w-px h-4 bg-slate-600 mx-1"></div>
+                            <button class="p-1.5 hover:bg-slate-700 rounded text-slate-300"><i class="ph ph-list-bullets"></i></button>
+                            <div class="w-px h-4 bg-slate-600 mx-1"></div>
+                            <button class="p-1.5 hover:bg-indigo-600 bg-indigo-500/20 text-indigo-400 rounded flex items-center gap-1 text-xs font-bold px-2">
+                                <i class="ph ph-sparkle"></i> IA
+                            </button>
+                         </div>
+
+                         <!-- Contenido Editable -->
+                         <div class="flex-1 outline-none tiptap-mock text-slate-300 overflow-y-auto pr-4" contenteditable="true">
+                            <h1 class="text-3xl font-bold text-white mb-6">Setup LiteLLM en Python</h1>
+                            <p>LiteLLM funciona como un proxy gateway unificado para llamar a más de 100 modelos (OpenAI, Anthropic, Azure, etc.).</p>
+                            <p>La característica principal es el <b>Fallback</b>. Si un modelo falla, usa otro automáticamente.</p>
+                            <pre class="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-sm text-emerald-400 my-4">
+from litellm import completion
+# Código de ejemplo aquí...
+                            </pre>
+                            <p>Tengo que investigar cómo integrar esto con el sistema de control de gastos para limitar el presupuesto por usuario.</p>
+                            <p class="text-slate-500 italic">Escribe "/" para comandos o "shift+/" para asistencia IA...</p>
+                         </div>
+                    </div>
+
+                    <!-- Panel Lateral Derecho (La Guía IA) -->
+                    <div class="w-72 hidden xl:block pt-16">
+                        <div class="glass rounded-xl p-4 border-l-2 border-indigo-500">
+                            <div class="flex items-center gap-2 text-indigo-400 mb-3 text-sm font-bold uppercase">
+                                <i class="ph ph-magic-wand"></i> Asistente Activo
+                            </div>
+                            <div class="space-y-4">
+                                <div class="bg-slate-800/50 p-3 rounded text-sm text-slate-300">
+                                    <p class="mb-2">He detectado que hablas de <b>Control de Gastos</b>.</p>
+                                    <p class="text-xs text-slate-500">En tu nota "SaaS Pricing" mencionaste límites de tokens. ¿Quieres relacionarlas?</p>
+                                    <button class="mt-2 w-full py-1 bg-indigo-600/20 text-indigo-400 text-xs rounded border border-indigo-500/30 hover:bg-indigo-600/40">Relacionar Notas</button>
+                                </div>
+                                <div class="bg-slate-800/50 p-3 rounded text-sm text-slate-300">
+                                    <p class="mb-2">¿Necesitas un ejemplo de código para los <b>Budgets</b> en LiteLLM?</p>
+                                    <button class="mt-2 w-full py-1 bg-slate-700 text-slate-300 text-xs rounded hover:bg-slate-600">Generar Código</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        
+    </div>
+
+    <!-- Lógica Alpine.js -->
+    <script>
+        function appData() {
+            return {
+                mode: 'dashboard', // dashboard, projects, writer
+                searchQuery: '',
+                
+                get pageTitle() {
+                    const titles = {
+                        'dashboard': 'Centro de Mando',
+                        'projects': 'Biblioteca de Proyectos',
+                        'writer': 'Editor'
+                    };
+                    return titles[this.mode];
+                },
+
+                get subTitle() {
+                    const subs = {
+                        'dashboard': 'Resumen del día y sugerencias IA',
+                        'projects': 'Explorando / Análisis / Documentación IA',
+                        'writer': 'Guardado hace unos instantes...'
+                    };
+                    return subs[this.mode];
+                },
+
+                setMode(newMode) {
+                    this.mode = newMode;
+                },
+
+                handleSmartInput() {
+                    // Simulación simple de routing IA
+                    const q = this.searchQuery.toLowerCase();
+                    
+                    if (q.includes('proyecto') || q.includes('ia') || q.includes('doc')) {
+                        this.setMode('projects');
+                    } else if (q.includes('escribir') || q.includes('nota') || q.includes('litellm')) {
+                        this.setMode('writer');
+                    } else {
+                        // Default
+                        alert("IA: He creado una nueva nota rápida en tu Inbox con: " + this.searchQuery);
+                    }
+                    this.searchQuery = '';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

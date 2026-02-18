@@ -1,0 +1,24 @@
+<!-- templates/modules/sidebar_projects.html -->
+<div class="text-sm text-slate-400 fade-in-up">
+    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 px-2">Explorador</div>
+    <div class="space-y-1">
+        {% for cat in categorias %}
+        <div x-data="{ open: true }">
+            <div @click="open = !open" class="flex items-center justify-between px-2 py-2 hover:bg-white/5 rounded cursor-pointer group">
+                <div class="flex items-center gap-2">
+                    <i class="ph-fill ph-folder text-indigo-500"></i>
+                    <span class="text-xs font-medium text-slate-300">{{ cat.nombre }}</span>
+                </div>
+                <i class="ph ph-caret-down text-[10px] transition-transform" :class="open ? '' : '-rotate-90'"></i>
+            </div>
+            <div x-show="open" x-collapse class="ml-4 border-l border-white/5 pl-2 space-y-1 mt-1">
+                {% for cuaderno in cat.cuadernos %}
+                <div class="py-1.5 px-2 text-[11px] hover:text-indigo-400 cursor-pointer truncate">
+                    {{ cuaderno.nombre }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

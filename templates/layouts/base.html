@@ -1,0 +1,1784 @@
+<!-- templates/layouts/base.html -->
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docs.ai | Knowledge OS</title>
+
+    <!-- 1. Alpine.js Core (CARGA PRIMERO) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- 2. HTMX (CARGA DESPUÉS de Alpine, con defer) -->
+    <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- 3. Otros recursos -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <!-- 4. Editor CSS -->
+    <link rel="stylesheet" href="/static/css/ai-draft.css">
+
+<script>
+        function appShell() {
+            return {
+                // Estados de Vista
+                mode: '{{ view_mode }}',
+                aiLoading: false, 
+                zenMode: false,
+                modalOpen: false,
+                editorTick: 0,
+                
+                // Estados de Navegación
+                activeCuadernoId: null,   
+                activeCategoriaId: null, 
+                activeNoteId: '{{ active_note_id or "" }}',
+
+                // Quick View Flotante
+                floatingNotes: {}, 
+                draggingNoteId: null,
+                dragOffset: { x: 0, y: 0 },
+                activeGearMenu: null,
+                gearMenuCoords: { x: 0, y: 0 },
+
+                // AI Chat Flotante (mismo patrón que floatingNotes)
+                floatingChat: null,
+                draggingChat: false,
+
+                // Zona 2 y 4 (Dimensiones)
+                sidebarWidth: localStorage.getItem('sidebarWidth') || 256,
+                isResizingSidebar: false,
+                inspectorWidth: localStorage.getItem('inspectorWidth') || 300,
+                isResizingInspector: false,
+
+                openCategories: JSON.parse(localStorage.getItem('docs_open_categories')) || [],
+                sidebarScrollTop: parseInt(localStorage.getItem('docs_sidebar_scroll')) || 0,
+                openThemes: JSON.parse(localStorage.getItem('docs_open_themes')) || [],
+                notebookScrollTop: parseInt(localStorage.getItem('docs_notebook_scroll')) || 0,
+
+                init() {
+                    document.addEventListener('update-inbox-list', () => { this.modalOpen = false; });
+                    window.addEventListener('mousemove', (e) => { this.handleMouseMove(e); });
+                    window.addEventListener('mouseup', () => { this.stopAllResizing(); });
+
+                    if (this.activeNoteId && this.activeNoteId !== "") {
+                        setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('note-selected', { detail: { id: this.activeNoteId } }));
+                        }, 300);
+                    }
+                },
+
+                // AXIOMA I.II: PROTOCOLO DE LIMPIEZA ATÓMICA
+                openModal(url) {
+                    const target = document.getElementById('main-portal-target');
+                    if (!target) return;
+                    target.innerHTML = ''; // Elimina fantasmas visuales
+                    this.modalOpen = true;
+                    htmx.ajax('GET', url, { target: '#main-portal-target', swap: 'innerHTML' });
+                },
+
+                toggleTheme(id) {
+                    if (this.openThemes.includes(id)) {
+                        this.openThemes = this.openThemes.filter(i => i !== id);
+                    } else {
+                        this.openThemes.push(id);
+                    }
+                    localStorage.setItem('docs_open_themes', JSON.stringify(this.openThemes));
+                },
+
+                checkInitialTheme(id, isFirst) {
+                    if (this.openThemes.length === 0 && isFirst) { this.openThemes.push(id); }
+                },
+
+                toggleCategory(id) {
+                    if (this.openCategories.includes(id)) {
+                        this.openCategories = this.openCategories.filter(i => i !== id);
+                    } else {
+                        this.openCategories.push(id);
+                    }
+                    localStorage.setItem('docs_open_categories', JSON.stringify(this.openCategories));
+                },
+
+                handleMouseMove(e) {
+                    if (this.isResizingSidebar) {
+                        let newWidth = e.clientX - 64;
+                        if (newWidth > 200 && newWidth < 600) this.sidebarWidth = newWidth;
+                    }
+                    if (this.isResizingInspector) {
+                        let newWidth = window.innerWidth - e.clientX;
+                        if (newWidth > 200 && newWidth < 500) this.inspectorWidth = newWidth;
+                    }
+                },
+
+                stopAllResizing() {
+                    if (this.isResizingSidebar || this.isResizingInspector) {
+                        this.isResizingSidebar = false;
+                        this.isResizingInspector = false;
+                        document.body.classList.remove('select-none', 'cursor-col-resize');
+                        localStorage.setItem('sidebarWidth', this.sidebarWidth);
+                        localStorage.setItem('inspectorWidth', this.inspectorWidth);
+                    }
+                },
+
+                startResizeSidebar() { this.isResizingSidebar = true; document.body.classList.add('select-none', 'cursor-col-resize'); },
+                startResizeInspector() { this.isResizingInspector = true; document.body.classList.add('select-none', 'cursor-col-resize'); },
+
+                get modeDisplay() { return this.mode === 'dashboard' ? 'Inicio' : 'Editor'; },
+                get leftPanelTitle() { return this.mode === 'dashboard' ? 'Biblioteca' : 'Contenido'; },
+
+                openGearMenu(event, notaId) {
+                    event.stopPropagation();
+                    const btn = event.currentTarget;
+                    const rect = btn.getBoundingClientRect();
+                    if (this.activeGearMenu === notaId) { this.activeGearMenu = null; return; }
+                    this.activeGearMenu = notaId;
+                    const menuHeight = 220;
+                    const spaceBelow = window.innerHeight - rect.bottom;
+                    this.gearMenuCoords.x = rect.left - 160;
+                    this.gearMenuCoords.y = (spaceBelow < menuHeight) ? rect.top - menuHeight + 40 : rect.bottom + 8;
+                    setTimeout(() => { document.addEventListener('click', (e) => {
+                        const portal = document.getElementById('global-gear-menu-portal');
+                        if (portal && !portal.contains(e.target)) this.activeGearMenu = null;
+                    }, { once: true }); }, 0);
+                },
+
+                // Dentro de appShell() en base.html
+
+                renderTiptapToStaticHtml(jsonStr) {
+                    if (!jsonStr) return "<p class='text-slate-500 italic'>Sin contenido</p>";
+                    
+                    try {
+                        const data = (typeof jsonStr === 'string') ? JSON.parse(jsonStr) : jsonStr;
+                        
+                        const parseNode = (node) => {
+                            // 1. Manejo de Texto y Formatos (Marks)
+                            if (node.type === 'text') {
+                                let text = node.text || "";
+                                if (node.marks) {
+                                    node.marks.forEach(mark => {
+                                        if (mark.type === 'bold') text = `<strong class="text-white font-bold">${text}</strong>`;
+                                        if (mark.type === 'italic') text = `<em class="italic text-slate-200">${text}</em>`;
+                                        if (mark.type === 'underline') text = `<u class="underline decoration-indigo-500/50">${text}</u>`;
+                                        if (mark.type === 'code') text = `<code class="bg-slate-800 px-1 rounded text-indigo-300 text-[10px] font-mono">${text}</code>`;
+                                        if (mark.type === 'highlight') text = `<mark class="bg-indigo-500/40 text-indigo-200 px-0.5 rounded">${text}</mark>`;
+                                        if (mark.type === 'textStyle' && mark.attrs?.color) text = `<span style="color: ${mark.attrs.color}">${text}</span>`;
+                                    });
+                                }
+                                return text;
+                            }
+
+                            // 2. Procesar hijos recursivamente
+                            const content = node.content ? node.content.map(parseNode).join("") : "";
+
+                            // 3. Mapeo de Nodos con Clases de Tailwind (Preflight Bypass)
+                            switch (node.type) {
+                                case 'doc': 
+                                    return content;
+                                case 'paragraph': 
+                                    return `<p class="mb-4 text-slate-300 leading-relaxed">${content}</p>`;
+                                case 'heading':
+                                    const level = node.attrs?.level || 1;
+                                    const sizes = { 1: 'text-2xl', 2: 'text-xl', 3: 'text-lg' };
+                                    const sizeClass = sizes[level] || 'text-md';
+                                    return `<h${level} class="${sizeClass} font-bold text-white mt-6 mb-3 border-b border-white/5 pb-1">${content}</h${level}>`;
+                                case 'bulletList': 
+                                    return `<ul class="list-disc ml-6 mb-4 space-y-2 text-slate-300">${content}</ul>`;
+                                case 'orderedList': 
+                                    return `<ol class="list-decimal ml-6 mb-4 space-y-2 text-slate-300">${content}</ol>`;
+                                case 'listItem': 
+                                    return `<li class="pl-1">${content}</li>`;
+                                case 'blockquote': 
+                                    return `<blockquote class="border-l-4 border-indigo-500/50 pl-4 italic text-slate-400 my-6 bg-white/5 py-2 pr-2 rounded-r-lg">${content}</blockquote>`;
+                                case 'codeBlock': 
+                                    return `<pre class="bg-[#0d0e12] p-4 rounded-xl border border-white/10 font-mono text-[11px] my-5 overflow-x-auto text-emerald-400 shadow-inner"><code>${content}</code></pre>`;
+                                case 'horizontalRule': 
+                                    return `<hr class="border-white/10 my-8">`;
+                                case 'hardBreak': 
+                                    return `<br>`;
+                                default: 
+                                    return content;
+                            }
+                        };
+
+                        return parseNode(data);
+                    } catch (e) {
+                        console.error("Error QuickView Render:", e);
+                        return "<p class='text-red-400'>Error al procesar el formato de la nota</p>";
+                    }
+                },
+
+                openQuickView(notaId) {
+                    if (this.floatingNotes[notaId]) { 
+                        this.floatingNotes[notaId].zIndex = this.getMaxZIndex() + 1; 
+                        this.activeGearMenu = null; 
+                        return; 
+                    }
+                    
+                    fetch(`/api/notes/${notaId}`).then(r => r.json()).then(nota => {
+                        const x = Math.random() * (window.innerWidth - 400) * 0.8;
+                        const y = Math.random() * (window.innerHeight - 300) * 0.6 + 50;
+                        
+                        // Ejecutamos el renderizador de formato rico
+                        const htmlRico = this.renderTiptapToStaticHtml(nota.contenido);
+                        
+                        this.floatingNotes[notaId] = {
+                            id: notaId, 
+                            titulo: nota.titulo || 'Sin título',
+                            contenidoHtml: htmlRico, // <--- ESTE NOMBRE DEBE COINCIDIR CON EL x-html
+                            x, y, width: 420, height: 500, zIndex: this.getMaxZIndex() + 1
+                        };
+                        this.activeGearMenu = null;
+                    });
+                },
+
+
+                closeFloatingNote(notaId) { delete this.floatingNotes[notaId]; },
+                startDragFloatingNote(event, notaId) {
+                    const noteData = this.floatingNotes[notaId];
+                    if (!noteData) return;
+                    this.draggingNoteId = notaId;
+                    this.dragOffset = { x: event.clientX - noteData.x, y: event.clientY - noteData.y };
+                    noteData.zIndex = this.getMaxZIndex() + 1;
+                    const onDrag = (e) => {
+                        if (!this.draggingNoteId) return;
+                        const n = this.floatingNotes[this.draggingNoteId];
+                        n.x = e.clientX - this.dragOffset.x; n.y = e.clientY - this.dragOffset.y;
+                    };
+                    const stopDrag = () => {
+                        this.draggingNoteId = null;
+                        document.removeEventListener('mousemove', onDrag);
+                        document.removeEventListener('mouseup', stopDrag);
+                    };
+                    document.addEventListener('mousemove', onDrag);
+                    document.addEventListener('mouseup', stopDrag);
+                },
+
+                startResizeFloatingNote(event, notaId) {
+                    event.stopPropagation();
+                    const noteData = this.floatingNotes[notaId];
+                    const startX = event.clientX, startY = event.clientY;
+                    const startW = noteData.width, startH = noteData.height;
+                    const onResize = (e) => {
+                        noteData.width = Math.max(300, startW + (e.clientX - startX));
+                        noteData.height = Math.max(200, startH + (e.clientY - startY));
+                    };
+                    const stopResize = () => { document.removeEventListener('mousemove', onResize); document.removeEventListener('mouseup', stopResize); };
+                    document.addEventListener('mousemove', onResize);
+                    document.addEventListener('mouseup', stopResize);
+                },
+
+                // Chat Flotante (similar a quickview)
+                // Chat Flotante (similar a quickview)
+                openAiChat() {
+                    if (this.floatingChat) {
+                        this.floatingChat.zIndex = this.getMaxZIndex() + 1;
+                        return;
+                    }
+                    
+                    const x = window.innerWidth - 550;
+                    const y = 100;
+                    
+                    this.floatingChat = {
+                        messages: [],
+                        input: '',
+                        streaming: false,
+                        x, y, 
+                        width: 500, 
+                        height: 600, 
+                        zIndex: this.getMaxZIndex() + 1
+                    };
+                },
+
+                closeAiChat() {
+                    this.floatingChat = null;
+                },
+
+                startDragChat(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.draggingChat = true;
+                    this.floatingChat.zIndex = this.getMaxZIndex() + 1;
+                    const startX = event.clientX, startY = event.clientY;
+                    const startChatX = this.floatingChat.x, startChatY = this.floatingChat.y;
+                    
+                    const onDrag = (e) => {
+                        this.floatingChat.x = startChatX + (e.clientX - startX);
+                        this.floatingChat.y = startChatY + (e.clientY - startY);
+                    };
+                    
+                    const stopDrag = () => {
+                        this.draggingChat = false;
+                        document.removeEventListener('mousemove', onDrag);
+                        document.removeEventListener('mouseup', stopDrag);
+                    };
+                    
+                    document.addEventListener('mousemove', onDrag);
+                    document.addEventListener('mouseup', stopDrag);
+                },
+
+                startResizeChat(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const startX = event.clientX, startY = event.clientY;
+                    const startW = this.floatingChat.width, startH = this.floatingChat.height;
+                    
+                    const onResize = (e) => {
+                        this.floatingChat.width = Math.max(300, startW + (e.clientX - startX));
+                        this.floatingChat.height = Math.max(200, startH + (e.clientY - startY));
+                    };
+                    
+                    const stopResize = () => { 
+                        document.removeEventListener('mousemove', onResize); 
+                        document.removeEventListener('mouseup', stopResize); 
+                    };
+                    
+                    document.addEventListener('mousemove', onResize);
+                    document.addEventListener('mouseup', stopResize);
+                },
+
+                toggleAiChat() {
+                    if (this.floatingChat) {
+                        this.closeAiChat();
+                    } else {
+                        this.openAiChat();
+                    }
+                },
+
+                getMaxZIndex() { return Math.max(0, ...Object.values(this.floatingNotes).map(n => n.zIndex || 0)); },
+
+                confirmDeleteInboxNota(notaId) {
+                    if (confirm('¿Eliminar esta nota?')) {
+                        htmx.ajax('DELETE', `/inbox/eliminar/${notaId}`, {
+                            handler: () => {
+                                document.body.dispatchEvent(new CustomEvent('update-inbox-list'));
+                                document.body.dispatchEvent(new CustomEvent('update-inbox-count'));
+                                document.body.dispatchEvent(new CustomEvent('refresh-notebook-sidebar'));
+                                if (this.floatingNotes[notaId]) this.closeFloatingNote(notaId);
+                                if (this.activeNoteId === notaId) { this.activeNoteId = null; this.mode = 'dashboard'; }
+                            }
+                        });
+                    }
+                    this.activeGearMenu = null;
+                },
+
+                switchActiveNote(newNoteId) {
+                    if (this.activeNoteId === newNoteId) { this.mode = 'notebook'; return; }
+                    this.openModal(`/partial/modal/confirm-edit/${newNoteId}`);
+                },
+
+                loadNoteFromQuickView(newNoteId) {
+                    this.activeNoteId = newNoteId;
+                    this.mode = 'notebook';
+                    window.dispatchEvent(new CustomEvent('note-selected', { detail: { id: newNoteId } }));
+                },
+
+                // [ARQUITECTURA AI - NATIVA TIPTAP]
+                // El estado ahora es gestionado por la extensión AICommand
+                // que emite eventos que Alpine escucha.
+                // NO tocamos directamente Alpine.aiMenu ni Alpine.aiPrompt
+                
+                aiPrompt: {
+                    show: false,
+                    x: 0,
+                    y: 0,
+                    input: '',
+                    response: '',
+                    streaming: false,
+                    context: null,  // Contexto de la última acción (posición, etc)
+                    slashRange: null,  // Rango del "/" para inserción
+                    cursorPos: null  // Posición exacta del cursor
+                },
+                
+                // Chat Modal (ASK AI button en editor toolbar)
+                aiChat: {
+                    show: false,
+                    messages: [],  // Array de { role: 'user'|'assistant', content: string }
+                    input: '',
+                    streaming: false
+                }
+            
+            }
+        }
+    </script>
+
+    <style>
+        /* 1. FUENTES: Fusionamos Inter, Mono y Merriweather */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        #main-canvas {
+            scroll-behavior: smooth;
+        }
+
+        /* 2. EL PAPEL: Tipografía Serif para el cuerpo de la nota */
+        #tiptap-content { 
+            font-family: 'Merriweather', serif; 
+            font-weight: 400;
+            color: #cbd5e1;
+        }
+
+        /* 3. ESTRUCTURA BASE (Preservada) */
+        .glass-panel { background: #13151b; border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        [x-cloak] { display: none !important; }
+        
+        /* 4. HTMX TRANSITIONS & INDICATORS (Preservado y Sagrado) */
+        .htmx-added { opacity: 0; transform: translateY(10px); }
+        .htmx-settling { opacity: 1; transform: translateY(0); transition: all 0.3s ease-out; }
+
+        .htmx-indicator { 
+                    opacity: 0; 
+                    display: none; 
+                    pointer-events: none; 
+                    transition: opacity 0.2s ease-in-out;
+                }
+                .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { 
+                    display: flex !important; 
+                    opacity: 1; 
+                    pointer-events: auto; 
+                }
+
+        /* 5. PUNTITOS IA (Preservado) */
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #818cf8; /* Un índigo claro que resalta en el fondo oscuro */
+            border-radius: 50%;
+            display: inline-block;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .ai-indicator-container {
+            position: absolute; top: 1.5rem; left: 0; right: 0;
+            display: flex; justify-content: center;
+            pointer-events: none; z-index: 50;
+        }
+
+        /* 6. DISEÑO EDITORIAL (Prose) */
+        .prose { color: #94a3b8; max-width: none; }
+        .prose h1, .prose h2, .prose h3 { 
+            font-family: 'Inter', sans-serif; 
+            color: #e2e8f0; 
+            font-weight: 700; 
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            scroll-margin-top: 100px;
+        }
+        .prose p { line-height: 1.8; margin-bottom: 1.25em; }
+        .prose strong { color: #cbd5e1; font-weight: 600; }
+        .prose ul { list-style-type: disc !important; padding-left: 1.5em !important; margin-bottom: 1em; }
+        .prose ol { list-style-type: decimal !important; padding-left: 1.5em !important; margin-bottom: 1em; }
+        .prose blockquote { 
+            border-left: 3px solid #6366f1; 
+            padding-left: 1.5em; 
+            font-style: italic; 
+            color: #94a3b8;
+            margin: 1.5em 0;
+        }
+        .prose a { color: #818cf8; text-decoration: underline; cursor: pointer; }
+
+        /* Forzar jerarquía visual de títulos en el editor */
+        .prose h1 { font-size: 2.25rem !important; line-height: 2.5rem !important; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; }
+        .prose h2 { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+        .prose h3 { font-size: 1.5rem !important; line-height: 2rem !important; }
+
+        /* Estilo para el Bloque de Código (Zona 3) */
+        .prose pre {
+            background-color: #0d0e12 !important;
+            padding: 0 !important; 
+            margin: 2rem 0 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            overflow: visible !important; 
+            position: relative;
+        }
+
+        .prose pre code {
+            display: block;
+            padding: 1.5rem !important;
+            overflow-x: auto !important; 
+            white-space: pre !important;  
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.85rem !important;
+            line-height: 1.6 !important;
+            color: #abb2bf; 
+            display: block; 
+        }
+
+        /* Forzar visibilidad de herramientas al pasar el mouse sobre el bloque */
+        pre:hover .code-tools {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        /* Estilo base para que no dependa solo de Tailwind */
+        .code-tools {
+            position: absolute !important;
+            top: 12px !important;
+            right: 12px !important;
+            z-index: 50 !important;
+            display: flex !important;
+            gap: 8px !important;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .code-tools button {
+            background: rgba(30, 41, 59, 0.8) !important;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #94a3b8 !important;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            transition: all 0.2s;
+        }
+
+        .code-tools button:hover {
+            background: #6366f1 !important;
+            color: white !important;
+            border-color: #818cf8 !important;
+        }
+
+        /* --- COLORES DE SINTAXIS (One Dark Theme) --- */
+        .hljs-keyword, .hljs-selector-tag { color: #c678dd; } 
+        .hljs-string, .hljs-doctag { color: #98c379; }       
+        .hljs-title, .hljs-section, .hljs-selector-id { color: #61afef; } 
+        .hljs-variable, .hljs-template-variable { color: #d19a66; } 
+        .hljs-comment, .hljs-quote { color: #5c6370; font-style: italic; } 
+        .hljs-number, .hljs-literal { color: #d19a66; }
+        .hljs-type, .hljs-built_in { color: #e5c07b; }
+        .hljs-attr { color: #d19a66; }
+
+        /* Diferenciar el código en línea */
+        .prose :not(pre) > code {
+            background-color: rgba(99, 102, 241, 0.1) !important;
+            color: #818cf8 !important;
+            padding: 0.2rem 0.4rem !important;
+            border-radius: 0.4rem !important;
+            font-size: 0.9em !important;
+        }
+
+        /* Ajustar el espacio entre párrafos */
+        .prose p {
+            margin-top: 0.5em !important;
+            margin-bottom: 0.5em !important;
+        }
+        
+        /* 7. UTILIDADES EXTRA */
+        .resizer-hover:hover { background-color: rgba(99, 102, 241, 0.4); }
+
+        /* Estilos de Scrollbar Personalizados */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f1117; }
+        ::-webkit-scrollbar-thumb { background: #1e222e; border-radius: 10px; border: 1px solid #0f1117; }
+        ::-webkit-scrollbar-thumb:hover { background: #312e81; }
+        
+        * { scrollbar-width: thin; scrollbar-color: #1e222e #0f1117; }
+
+        /* 8. QUICK VIEW FLOTANTE */
+        .floating-note-window {
+            position: fixed;
+            background: #1a1d26;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 
+                        0 0 20px rgba(99, 102, 241, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+            pointer-events: auto;
+        }
+
+        .floating-note-window:hover {
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 
+                        0 0 30px rgba(99, 102, 241, 0.4);
+        }
+
+        .floating-note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            cursor: move;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .floating-note-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        .floating-note-header button {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .floating-note-header button:hover {
+            color: #f87171;
+        }
+
+        .floating-note-content {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            white-space: pre-wrap; /* Mantiene saltos de línea y ajusta el texto */
+            font-size: 0.875rem;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        .floating-note-resizer {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, 
+                        transparent 0%, 
+                        transparent 50%, 
+                        rgba(99, 102, 241, 0.3) 50%);
+            flex-shrink: 0;
+        }
+
+        .floating-note-resizer:hover {
+            background: linear-gradient(135deg, 
+                        transparent 0%, 
+                        transparent 50%, 
+                        rgba(99, 102, 241, 0.6) 50%);
+        }
+
+        /* FOOTER DEL QUICK VIEW */
+        .floating-note-footer {
+            padding: 0.75rem 1rem;
+            background: rgba(15, 23, 42, 0.5);
+            border-top: 1px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .floating-note-edit-btn {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .floating-note-edit-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.5);
+            color: #c7d2fe;
+        }
+
+        /* AI CHAT FLOTANTE - Estilos similares a floating-note */
+        .floating-chat-window {
+            position: fixed;
+            background: #1a1d26;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 
+                        0 0 20px rgba(99, 102, 241, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+            pointer-events: auto;
+        }
+
+        .floating-chat-window:hover {
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 
+                        0 0 30px rgba(99, 102, 241, 0.4);
+        }
+
+        .floating-chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            cursor: move;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .floating-chat-header button {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .floating-chat-header button:hover {
+            color: #f87171;
+        }
+
+        .floating-chat-resizer {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, 
+                        transparent 0%, 
+                        transparent 50%, 
+                        rgba(99, 102, 241, 0.3) 50%);
+            flex-shrink: 0;
+            pointer-events: auto;
+        }
+
+        .floating-chat-resizer:hover {
+            background: linear-gradient(135deg, 
+                        transparent 0%, 
+                        transparent 50%, 
+                        rgba(99, 102, 241, 0.6) 50%);
+        }
+
+        /* MENÚ CONTEXTUAL DEL ENGRANAJE */
+        .gear-menu-container {
+            position: relative;
+            opacity: 1 !important; /* Forzamos que el contenedor del botón sea siempre opaco */
+        }
+
+        .gear-button {
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Mostrar engranaje al pasar el mouse */
+        .note-card:hover .gear-button {
+            opacity: 1;
+        }
+
+        .gear-button:hover {
+            color: #e2e8f0;
+        }
+
+        .gear-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            
+            /* BLOQUEO DE TRANSPARENCIA: Usamos RGB para asegurar 0 canal alfa */
+            background-color: rgb(26, 29, 38) !important; 
+            background-image: none !important;
+            opacity: 1 !important;
+            
+            /* FORZAR RENDERIZADO EN CAPA INDEPENDIENTE */
+            transform: translateZ(0); 
+            -webkit-transform: translateZ(0);
+            
+            /* ANULAR HERENCIA DE FILTROS */
+            filter: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            
+            /* DISEÑO Y JERARQUÍA */
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            min-width: 190px;
+            z-index: 99999 !important; /* Valor extremo */
+            
+            /* SOMBRA TOTALMENTE OPACA */
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 1) !important;
+            pointer-events: auto;
+        }
+
+        /* --- PORTAL GLOBAL: Menú Contextual (position: fixed) --- */
+        .gear-dropdown-portal {
+            /* Estilos idénticos al gear-dropdown pero para position: fixed */
+            background-color: rgb(26, 29, 38) !important;
+            background-image: none !important;
+            opacity: 1 !important;
+            
+            /* Renderizado GPU */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
+            
+            /* NO HEREDA filtros del padre (eso es el punto) */
+            filter: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            
+            /* Diseño */
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            min-width: 190px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 1);
+            
+            /* Asegurar que sea visible encima de todo */
+            z-index: 9999;
+            pointer-events: auto;
+        }
+
+        .gear-dropdown button, .gear-dropdown-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            font-size: 0.875rem;
+            color: #e2e8f0; /* Texto más claro para máxima legibilidad */
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .gear-dropdown button:hover, .gear-dropdown-btn:hover {
+            background-color: rgba(99, 102, 241, 0.2) !important; /* Fondo índigo suave al pasar el mouse */
+            color: #ffffff !important;
+        }
+
+        .gear-dropdown button:active, .gear-dropdown-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* --- ESTILOS PARA TABLAS EN EL EDITOR --- */
+
+        /* 1. Contenedor general de la tabla */
+        #tiptap-content table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+            margin: 2rem 0;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 2. Celdas (td) y Encabezados (th) */
+        #tiptap-content table td,
+        #tiptap-content table th {
+            min-width: 1em;
+            border: 1px solid #333; /* Borde visible en modo oscuro */
+            padding: 10px 12px;
+            vertical-align: top;
+            box-sizing: border-box;
+            position: relative;
+            text-align: left;
+        }
+
+        /* 3. Estilo específico para encabezados */
+        #tiptap-content table th {
+            font-weight: bold;
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        /* 4. Resaltado de celdas seleccionadas (Muy importante para gestión) */
+        #tiptap-content table .selectedCell:after {
+            z-index: 2;
+            content: "";
+            position: absolute;
+            left: 0; right: 0; top: 0; bottom: 0;
+            background: rgba(99, 102, 241, 0.15); /* Color índigo sutil */
+            pointer-events: none;
+        }
+
+        /* 5. El tirador para cambiar el tamaño de columnas (resizable) */
+        #tiptap-content table .column-resizer {
+            position: absolute;
+            right: -2px;
+            top: 0;
+            bottom: -2px;
+            width: 4px;
+            background-color: #6366f1;
+            z-index: 20;
+            cursor: col-resize;
+        }
+
+        /* 6. Mejorar la visualización de párrafos dentro de celdas */
+        #tiptap-content table p {
+            margin: 0 !important;
+        }
+        /* Efecto de desvanecimiento suave para cambios de HTMX */
+        #contextual-sidebar {
+            transition: all 0.3s ease;
+        }
+
+        /* Cuando HTMX está intercambiando contenido */
+        .htmx-swapping #contextual-sidebar {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+
+    </style>
+
+    <script type="module" src="{{ url_for('static', path='/js/editor.js') }}"></script>
+</head>
+
+<!-- 2. CORRECCIÓN: x-data ahora llama a la función appShell() -->
+<body class="bg-[#0f1117] text-slate-300 h-screen overflow-hidden flex selection:bg-indigo-500/30" 
+      x-data="appShell()">
+
+    <!-- Contenedor para Notas Flotantes (Quick View) -->
+    <div id="floating-notes-container" class="fixed inset-0 pointer-events-none z-[1000]">
+        <!-- Renderizar cada nota flotante dinámicamente -->
+        <template x-for="(nota, notaId) in floatingNotes" :key="notaId">
+            <div class="floating-note-window"
+                 :style="{
+                     left: nota.x + 'px',
+                     top: nota.y + 'px',
+                     width: nota.width + 'px',
+                     height: nota.height + 'px',
+                     zIndex: nota.zIndex
+                 }">
+                
+                <!-- HEADER (Arrastra) -->
+                <div class="floating-note-header" @mousedown="startDragFloatingNote($event, notaId)">
+                    <h4 class="floating-note-title" x-text="nota.titulo || 'Sin título'"></h4>
+                    <button @click.stop="closeFloatingNote(notaId)" type="button">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+                
+                <!-- CONTENIDO (Previsualización con texto extraído) -->
+                <div class="floating-note-content select-text custom-scroll" 
+                    @mousedown.stop 
+                    x-html="nota.contenidoHtml || '<p class=\'text-slate-500 italic\'>Sin contenido</p>'"></div>
+                
+                <!-- BOTÓN EDITAR -->
+                <div class="floating-note-footer">
+                    <button @click="loadNoteFromQuickView(notaId); closeFloatingNote(notaId)" type="button" class="floating-note-edit-btn">
+                        <i class="ph ph-pencil text-sm"></i> Editar
+                    </button>
+                </div>
+                
+                <!-- RESIZER (Esquina inferior derecha) -->
+                <div class="floating-note-resizer"
+                     @mousedown="startResizeFloatingNote($event, notaId)">
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Contenedor para AI Chat Flotante (exactamente como floatingNotes) -->
+    <div id="ai-chat-container" class="fixed inset-0 pointer-events-none z-[1001]">
+        <template x-if="floatingChat">
+            <div class="floating-chat-window"
+                 :style="{
+                     left: floatingChat.x + 'px',
+                     top: floatingChat.y + 'px',
+                     width: floatingChat.width + 'px',
+                     height: floatingChat.height + 'px',
+                     zIndex: floatingChat.zIndex
+                 }">
+                
+                <!-- Header (Arrastra) -->
+                <div class="floating-chat-header" @mousedown="startDragChat($event)">
+                    <div class="flex items-center gap-2">
+                        <i class="ph-fill ph-sparkle text-indigo-400 text-lg"></i>
+                        <h3 class="text-sm font-bold text-white">Ask AI</h3>
+                    </div>
+                    <button 
+                        @click.stop="closeAiChat()"
+                        class="text-slate-500 hover:text-white transition-colors">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+                
+                <!-- Messages Container -->
+                <div style="flex: 1; overflow-y: auto;" class="p-4 space-y-4 bg-[#0f1117]/30 custom-scroll" id="chat-messages">
+                    <template x-for="(msg, idx) in floatingChat.messages" :key="idx">
+                        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                            <div :class="`${msg.role === 'user' ? 'max-w-xs' : 'w-full'} px-4 py-2 rounded-lg ${
+                                msg.role === 'user' 
+                                ? 'bg-indigo-600 text-white' 
+                                : 'bg-slate-700/50 text-slate-200'
+                            }`">
+                                <p x-text="msg.content" class="text-sm whitespace-pre-wrap"></p>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <!-- Spinner mientras envía -->
+                    <template x-if="floatingChat.streaming">
+                        <div class="flex justify-start">
+                            <div class="bg-slate-700/50 text-slate-200 px-4 py-2 rounded-lg">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span class="text-sm">Pensando...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <!-- Input -->
+                <div class="p-3 border-t border-white/5 bg-[#0f1117]/50 flex gap-2">
+                    <input type="text"
+                        x-model="floatingChat.input"
+                        :disabled="floatingChat.streaming"
+                        @keydown.enter="if(!floatingChat.streaming && floatingChat.input.trim()) window.dispatchEvent(new CustomEvent('ai:chat:send', { detail: { message: floatingChat.input } }))"
+                        @mousedown.stop
+                        placeholder="Ask AI..."
+                        class="flex-1 bg-[#1a1d26] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 disabled:opacity-50">
+                    
+                    <button 
+                        :disabled="floatingChat.streaming || !floatingChat.input.trim()"
+                        @click="window.dispatchEvent(new CustomEvent('ai:chat:send', { detail: { message: floatingChat.input } }))"
+                        @mousedown.stop
+                        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-all">
+                        <i class="ph ph-arrow-circle-up"></i>
+                    </button>
+                </div>
+                
+                <!-- Resizer (Esquina inferior derecha) -->
+                <div class="floating-chat-resizer"
+                     @mousedown="startResizeChat($event)">
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Configuración de HTMX para compatible con Alpine + Editor Tiptap -->
+    <script>
+        document.addEventListener('htmx:beforeRequest', (event) => {
+                // Si la petición va dirigida al contenido del modal, lo vaciamos inmediatamente
+                if (event.detail.target.id === 'modal-content') {
+                    event.detail.target.innerHTML = `
+                        <div class="flex items-center justify-center p-12">
+                            <div class="flex gap-1">
+                                <span class="typing-dot"></span>
+                                <span class="typing-dot"></span>
+                                <span class="typing-dot"></span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+        // Sincronizar HTMX con Alpine.js y forzar reactividad del editor
+        document.addEventListener('htmx:afterSettle', (event) => {
+            // 1. Procesar nuevos elementos con Alpine
+            if (window.Alpine && typeof window.Alpine.process === 'function') {
+                window.Alpine.process(event.detail.target);
+                
+                // 2. Forzar que Alpine reinitialice los bindings reactivos
+                if (window.Alpine.flushAndStopDeferringMacros) {
+                    window.Alpine.flushAndStopDeferringMacros();
+                }
+            }
+            
+            // 3. Reinicializar Phosphor Icons en los nuevos elementos
+            if (window.phosphor && window.phosphor.replace) {
+                window.phosphor.replace(event.detail.target);
+            }
+            
+            // 4. Si el editor existe, forzar actualización de barra
+            if (window.editor && typeof window.editor === 'function' && window.editor()) {
+                const app = window.Alpine.$data(document.body);
+                if (app) {
+                    app.editorTick++;  // Fuerza re-evaluación de activeStyles()
+                }
+            }
+        });
+    </script>
+
+    <!-- 1. NAVEGACIÓN DE LENTES -->
+    <nav class="w-16 bg-[#0B0C10] border-r border-white/5 flex flex-col items-center py-6 z-50 shrink-0">
+        <a href="/" class="mb-8 text-indigo-500 text-3xl hover:text-white transition-colors cursor-pointer">
+            <i class="ph-fill ph-brain"></i>
+        </a>
+        
+        <div class="flex flex-col gap-4 w-full px-2">
+            <button @click="mode = 'dashboard'; resetSidebarToDefault('{{ categorias[0].id if categorias else '' }}')" 
+                    :class="mode === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'" 
+                    class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative"
+                    hx-get="/partial/sidebar/dashboard" 
+                    hx-target="#contextual-sidebar"
+                    hx-indicator="#sidebar-indicator"
+                    hx-swap="innerHTML">
+                <i class="ph-fill ph-squares-four text-xl"></i>
+            </button>
+
+            <button @click="mode = 'inbox'" 
+                    :class="mode === 'inbox' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25' : 'text-slate-500 hover:text-amber-400 hover:bg-white/5'" 
+                    class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative"
+                    hx-get="/partial/sidebar/inbox" 
+                    hx-target="#contextual-sidebar"
+                    hx-indicator="#sidebar-indicator">
+                <i class="ph-fill ph-tray text-xl"></i>
+                <span id="inbox-badge"
+                    class="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-[#0B0C10] min-w-[18px] text-center"
+                    x-data="{ count: '0' }"
+                    x-show="count !== '0' && count !== ''"
+                    hx-get="/inbox/count" 
+                    hx-trigger="load, update-inbox-count from:body"
+                    hx-target="this"
+                    @htmx:after-on-load="count = $event.detail.xhr.responseText.trim()">
+                </span>
+            </button>
+
+            <button @click="mode = 'directory'"
+                    :class="mode === 'directory' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-folder-notch text-xl"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- 2. BARRA LATERAL CONTEXTUAL -->
+    <aside class="glass-panel flex flex-col shrink-0 transition-[margin,opacity] duration-300 relative"
+           :style="`width: ${sidebarWidth}px; ${zenMode ? 'margin-left: -' + sidebarWidth + 'px; opacity: 0;' : ''}`">
+        
+        <div class="h-14 flex items-center px-5 border-b border-white/5 bg-[#13151b] shrink-0">
+            <span class="text-xs font-bold tracking-widest text-slate-500 uppercase" x-text="leftPanelTitle"></span>
+        </div>
+
+        <!-- Contenedor con Indicador Fijo -->
+        <div class="flex-1 overflow-hidden relative">
+            <!-- Indicador de carga para la Sidebar -->
+            <div id="sidebar-indicator" class="htmx-indicator absolute inset-0 bg-[#0f1117]/60 backdrop-blur-[1px] z-50 flex items-center justify-center">
+                <div class="flex gap-1">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            </div>
+
+            <!-- El target de HTMX ahora es solo el contenido scrollable -->
+            <div id="contextual-sidebar" class="h-full overflow-y-auto custom-scroll p-3">
+                {% if view_mode == 'dashboard' %}
+                    {% include 'modules/sidebar_dashboard.html' %}
+                {% else %}
+                    {% include 'modules/sidebar_projects.html' %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- EL RESIZER (Tirador) -->
+        <div class="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-indigo-500/50 transition-colors z-50"
+             @mousedown="startResizeSidebar()">
+        </div>
+    </aside>
+
+    <!-- 3. ÁREA PRINCIPAL -->
+    <main class="flex-1 flex flex-col relative bg-[#0f1117]">        <header class="h-14 flex items-center justify-between px-8 border-b border-white/5 bg-[#0f1117]/80 backdrop-blur-md z-10">
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+                <i class="ph-bold ph-house text-xs"></i>
+                <span x-text="modeDisplay"></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- NUEVO: Indicador de autoguardado -->
+                <span id="save-status" class="text-[10px] text-slate-500 font-medium italic transition-opacity duration-300"></span>
+                
+                <div class="flex items-center gap-1 text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 border border-white/5">
+                <button @click="zenMode = !zenMode" class="text-slate-500 hover:text-white p-1 rounded hover:bg-white/5">
+                    <i :class="zenMode ? 'ph-fill ph-arrows-in-line-horizontal' : 'ph-fill ph-arrows-out-line-horizontal'"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Contenedor de Contenido (Dashboard o Editor) -->
+        <div id="main-canvas" class="flex-1 overflow-y-auto no-scrollbar relative">
+            <!-- OVERLAY DE CARGA PARA EL EDITOR -->
+            <div x-show="aiLoading" 
+                x-transition:enter="transition opacity ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="transition opacity ease-in duration-200"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="absolute inset-0 bg-[#0f1117]/80 backdrop-blur-[2px] z-[60] flex flex-col items-center justify-center pointer-events-none">
+                <div class="flex gap-1 mb-2">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+                <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Sincronizando...</span>
+            </div>
+            
+            <!-- VISTA DASHBOARD -->
+            <div x-show="mode === 'dashboard'" x-transition.opacity.duration.300ms>
+                {% if view_mode == 'dashboard' %}
+                    {% include 'modules/cockpit_pane.html' %}
+                {% endif %}
+            </div>
+
+            <!-- VISTA EDITOR (El Escenario Permanente) -->
+            <div x-show="mode !== 'dashboard'" class="h-full relative" x-cloak>
+                
+                <!-- Capa: Estado Vacío (Se muestra cuando NO hay nota seleccionada) -->
+                <div x-show="!activeNoteId || activeNoteId === ''" 
+                     class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 bg-[#0f1117] z-20">
+                    <i class="ph ph-note-blank text-6xl mb-4 opacity-20"></i>
+                    <p class="text-sm font-medium tracking-wide">Selecciona una nota para comenzar</p>
+                </div>
+
+                <!-- Escenario de Escritura (Se muestra cuando SÍ hay nota seleccionada) -->
+                <!-- Escenario de Escritura -->
+                <div id="editor-stage" 
+                     x-show="activeNoteId && activeNoteId !== ''"
+                     class="h-full flex flex-col transition-all duration-500 overflow-y-auto"
+                     :class="zenMode ? 'max-w-[72ch] mx-auto' : 'max-w-[900px] mx-auto'">
+                    
+                    <div class="flex-1 py-12 px-8 relative">
+                        <!-- 1. Título -->
+                        <textarea id="note-title-input"
+                                  placeholder="Título de la nota..."
+                                  class="w-full bg-transparent text-2xl font-bold text-white mb-6 border-none focus:ring-0 placeholder-slate-800 outline-none leading-tight resize-none overflow-hidden"
+                                  rows="1"
+                                  oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+
+                        <!-- 2. Barra de Herramientas con Reactividad -->
+                        <div class="sticky top-0 z-40 -mx-4 px-4 py-2 bg-[#0f1117]/80 backdrop-blur-md border-b border-white/5 mb-8">
+                        <!-- Reemplaza el bloque <div id="fixed-toolbar"> dentro de tu base.html -->
+                        <div id="fixed-toolbar" 
+                            class="mx-auto flex items-center gap-1 bg-[#1a1d26]/80 backdrop-blur-md border border-white/10 p-1 rounded-xl w-max shadow-xl"
+                            x-data="{ 
+                                menuStyle: false, 
+                                menuColor: false, 
+                                menuAlign: false, 
+                                menuMore: false,
+                                activeStyles() { return this.editorTick && typeof editor === 'function' && editor() }
+                            }">
+
+                            <!-- GRUPO 1: ESTILO (H1, H2, H3) -->
+                            <div class="relative">
+                                <button @click="menuStyle = !menuStyle" @click.away="menuStyle = false"
+                                        class="flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-white/5 rounded-lg transition-all">
+                                    <span x-text="activeStyles() && editor().isActive('heading', { level: 1 }) ? 'H1' : 
+                                                activeStyles() && editor().isActive('heading', { level: 2 }) ? 'H2' : 
+                                                activeStyles() && editor().isActive('heading', { level: 3 }) ? 'H3' : 'Texto'"></span>
+                                    <i class="ph ph-caret-down text-[10px]"></i>
+                                </button>
+                                <div x-show="menuStyle" x-transition class="absolute top-full mt-2 left-0 w-32 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    <button @click="editor().chain().focus().setParagraph().run(); menuStyle = false" class="w-full text-left px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg">Párrafo</button>
+                                    <button @click="editor().chain().focus().toggleHeading({ level: 1 }).run(); menuStyle = false" class="w-full text-left px-3 py-2 text-[11px] font-bold hover:bg-white/5 rounded-lg">Título 1</button>
+                                    <button @click="editor().chain().focus().toggleHeading({ level: 2 }).run(); menuStyle = false" class="w-full text-left px-3 py-2 text-[11px] font-bold hover:bg-white/5 rounded-lg">Título 2</button>
+                                    <button @click="editor().chain().focus().toggleHeading({ level: 3 }).run(); menuStyle = false" class="w-full text-left px-3 py-2 text-[11px] font-bold hover:bg-white/5 rounded-lg">Título 3</button>
+                                </div>
+                            </div>
+
+                            <div class="w-px h-4 bg-white/10 mx-1"></div>
+
+                            <!-- GRUPO 2: BÁSICOS -->
+                            <button @click="editor().chain().focus().toggleBold().run()"
+                                    :class="activeStyles() && editor().isActive('bold') ? 'bg-indigo-500/20 text-indigo-400' : 'text-slate-400 hover:text-white hover:bg-white/5'"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                <i class="ph-bold ph-text-b"></i>
+                            </button>
+                            <button @click="editor().chain().focus().toggleItalic().run()"
+                                    :class="activeStyles() && editor().isActive('italic') ? 'bg-indigo-500/20 text-indigo-400' : 'text-slate-400 hover:text-white hover:bg-white/5'"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                <i class="ph-bold ph-text-italic"></i>
+                            </button>
+                            <button @click="editor().chain().focus().toggleUnderline().run()"
+                                    :class="activeStyles() && editor().isActive('underline') ? 'bg-indigo-500/20 text-indigo-400' : 'text-slate-400 hover:text-white hover:bg-white/5'"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                <i class="ph-bold ph-text-underline"></i>
+                            </button>
+                            <button @click="const url = window.prompt('URL:'); if(url) editor().chain().focus().setLink({ href: url }).run()"
+                                    :class="activeStyles() && editor().isActive('link') ? 'bg-indigo-500/20 text-indigo-400' : 'text-slate-400 hover:text-white hover:bg-white/5'"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-all">
+                                <i class="ph-bold ph-link"></i>
+                            </button>
+
+                            <div class="w-px h-4 bg-white/10 mx-1"></div>
+
+                            <!-- NUEVO GRUPO: ALINEACIÓN (Añadir antes del Grupo 3 de Color) -->
+                            <div class="relative" x-data="{ menuAlign: false }">
+                                <button @click="menuAlign = !menuAlign" @click.away="menuAlign = false"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-all hover:bg-white/5">
+                                    <i class="ph-bold ph-text-align-left"></i>
+                                </button>
+                                <div x-show="menuAlign" x-transition class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-36 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    <button @click="editor().chain().focus().setTextAlign('left').run(); menuAlign = false" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-left"></i> Izquierda</button>
+                                    <button @click="editor().chain().focus().setTextAlign('center').run(); menuAlign = false" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-center"></i> Centro</button>
+                                    <button @click="editor().chain().focus().setTextAlign('right').run(); menuAlign = false" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-right"></i> Derecha</button>
+                                    <button @click="editor().chain().focus().setTextAlign('justify').run(); menuAlign = false" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-justify"></i> Justificar</button>
+                                </div>
+                            </div>
+
+                            <!-- NUEVO GRUPO: TABLAS (Añadir después de Alineación) -->
+                            <div class="relative" x-data="{ menuTable: false }">
+                                <button @click="menuTable = !menuTable" @click.away="menuTable = false"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-all hover:bg-white/5">
+                                    <i class="ph-bold ph-table"></i>
+                                </button>
+                                <div x-show="menuTable" x-transition class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-44 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    <button @click="editor().chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); menuTable = false" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-plus"></i> Insertar Tabla 3x3</button>
+                                    <div class="w-full h-px bg-white/5 my-1"></div>
+                                    <button @click="editor().chain().focus().addColumnAfter().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg">Añadir Columna</button>
+                                    <button @click="editor().chain().focus().addRowAfter().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg">Añadir Fila</button>
+                                    <button @click="editor().chain().focus().deleteTable().run(); menuTable = false" class="w-full px-3 py-2 text-[11px] hover:bg-red-500/20 text-red-400 rounded-lg">Eliminar Tabla</button>
+                                </div>
+                            </div>
+
+                            <!-- GRUPO 3: COLOR (Paleta de la Foto 3) -->
+                            <div class="relative">
+                                <button @click="menuColor = !menuColor" @click.away="menuColor = false"
+                                        :class="activeStyles() && (editor().isActive('textStyle') || editor().isActive('highlight')) ? 'text-indigo-400' : 'text-slate-400'"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-white/5">
+                                    <i class="ph-bold ph-palette"></i>
+                                </button>
+                                <div x-show="menuColor" x-transition class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-44 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-3 z-50">
+                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-2 tracking-widest">Texto</p>
+                                    <div class="grid grid-cols-5 gap-2 mb-3">
+                                        <!-- FILA 1 -->
+                                        <!-- Blanco Puro -->
+                                        <button @click="editor().chain().focus().setColor('#fff').run()" 
+                                                class="w-5 h-5 rounded-full bg-white border border-white/10" title="Blanco Brillante"></button>
+                                        <!-- Blanco Mate Opaco (Slate 400) -->
+                                        <button @click="editor().chain().focus().setColor('#94a3b8').run()" 
+                                                class="w-5 h-5 rounded-full bg-[#94a3b8]" title="Blanco Mate"></button>
+                                        <!-- Rojo -->
+                                        <button @click="editor().chain().focus().setColor('#f87171').run()" 
+                                                class="w-5 h-5 rounded-full bg-red-400" title="Rojo"></button>
+                                        <!-- Naranja -->
+                                        <button @click="editor().chain().focus().setColor('#fb923c').run()" 
+                                                class="w-5 h-5 rounded-full bg-orange-400" title="Naranja"></button>
+                                        <!-- Ámbar / Amarillo -->
+                                        <button @click="editor().chain().focus().setColor('#fbbf24').run()" 
+                                                class="w-5 h-5 rounded-full bg-amber-400" title="Ámbar"></button>
+                                        
+                                        <!-- FILA 2 -->
+                                        <!-- Verde Esmeralda -->
+                                        <button @click="editor().chain().focus().setColor('#34d399').run()" 
+                                                class="w-5 h-5 rounded-full bg-emerald-400" title="Verde"></button>
+                                        <!-- Azul -->
+                                        <button @click="editor().chain().focus().setColor('#60a5fa').run()" 
+                                                class="w-5 h-5 rounded-full bg-blue-400" title="Azul"></button>
+                                        <!-- Violeta -->
+                                        <button @click="editor().chain().focus().setColor('#a78bfa').run()" 
+                                                class="w-5 h-5 rounded-full bg-violet-400" title="Violeta"></button>
+                                        <!-- Rosa -->
+                                        <button @click="editor().chain().focus().setColor('#f472b6').run()" 
+                                                class="w-5 h-5 rounded-full bg-pink-400" title="Rosa"></button>
+                                        <!-- Reset -->
+                                        <button @click="editor().chain().focus().unsetColor().run()" 
+                                                class="w-5 h-5 rounded-full border border-white/20 text-[10px] flex items-center justify-center hover:bg-white/10 transition-colors" 
+                                                title="Quitar Color">
+                                            <i class="ph ph-x"></i>
+                                        </button>
+                                    </div>
+                                    <p class="text-[9px] font-bold text-slate-500 uppercase mb-2 tracking-widest">Resaltado (Summernote)</p>
+                                    <div class="grid grid-cols-5 gap-2">
+                                        <button @click="editor().chain().focus().setHighlight({ color: '#323232' }).run()" class="w-5 h-5 rounded bg-[#323232] border border-white/10"></button>
+                                        <button @click="editor().chain().focus().setHighlight({ color: '#1e3a8a' }).run()" class="w-5 h-5 rounded bg-blue-900"></button>
+                                        <button @click="editor().chain().focus().setHighlight({ color: '#3f6212' }).run()" class="w-5 h-5 rounded bg-green-900"></button>
+                                        <button @click="editor().chain().focus().unsetHighlight().run()" class="w-5 h-5 rounded border border-white/20 text-[10px]"><i class="ph ph-x"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="w-px h-4 bg-white/10 mx-1"></div>
+
+                            <!-- GRUPO 4: PÁRRAFO -->
+                            <div class="relative">
+                                <button @click="menuAlign = !menuAlign" @click.away="menuAlign = false"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-all hover:bg-white/5">
+                                    <i class="ph-bold ph-list-bullets"></i>
+                                </button>
+                                <div x-show="menuAlign" x-transition class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-36 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    <button @click="editor().chain().focus().setTextAlign('left').run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-left"></i> Izquierda</button>
+                                    <button @click="editor().chain().focus().setTextAlign('center').run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-align-center"></i> Centro</button>
+                                    <button @click="editor().chain().focus().toggleBulletList().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-list-bullets"></i> Lista</button>
+                                    <button @click="editor().chain().focus().toggleTaskList().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-check-square"></i> To-do List</button>
+                                </div>
+                            </div>
+
+                            <div class="w-px h-4 bg-white/10 mx-1"></div>
+
+                            <!-- GRUPO 5: MÁS (Dropdown ...) -->
+                            <div class="relative">
+                                <button @click="menuMore = !menuMore" @click.away="menuMore = false"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-all hover:bg-white/5">
+                                    <i class="ph-bold ph-dots-three-outline-vertical"></i>
+                                </button>
+                                <div x-show="menuMore" x-transition class="absolute top-full mt-2 right-0 w-36 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    <button @click="editor().chain().focus().toggleSubscript().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-subscript"></i> Subíndice</button>
+                                    <button @click="editor().chain().focus().toggleSuperscript().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-text-superscript"></i> Superíndice</button>
+                                    <button @click="editor().chain().focus().toggleCodeBlock().run()" 
+                                            class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2">
+                                        <i class="ph ph-code"></i> Bloque Código
+                                    </button>
+                                    <button @click="editor().chain().focus().toggleBlockquote().run()" class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2"><i class="ph ph-quotes"></i> Cita</button>
+                                </div>
+                            </div>
+
+                            <!-- GRUPO: EXPORTAR (Añadir antes del BOTÓN IA) -->
+                            <div class="relative" x-data="{ menuExport: false }">
+                                <button @click="menuExport = !menuExport" @click.away="menuExport = false"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-400 transition-all hover:bg-white/5"
+                                        title="Exportar o Copiar">
+                                    <i class="ph-bold ph-export"></i>
+                                </button>
+                                
+                                <div x-show="menuExport" x-transition 
+                                    class="absolute top-full mt-2 right-0 w-48 bg-[#1a1d26] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                                    
+                                    <!-- Opción PDF (Nativo) -->
+                                    <button @click="menuExport = false; $nextTick(() => window.editorActions.printNote())" 
+                                            class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2 text-slate-300">
+                                        <i class="ph ph-file-pdf text-red-400"></i> Imprimir / Guardar PDF
+                                    </button>
+                                    
+                                    <div class="w-full h-px bg-white/5 my-1"></div>
+                                    
+                                    <!-- Opción Markdown -->
+                                    <button @click="window.editorActions.copyAsMarkdown(); menuExport = false" 
+                                            class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2 text-slate-300">
+                                        <i class="ph ph-markdown-logo text-blue-400"></i> Copiar como Markdown
+                                    </button>
+
+                                    <!-- Opción Texto Plano -->
+                                    <button @click="window.editorActions.copyAsText(); menuExport = false" 
+                                            class="w-full px-3 py-2 text-[11px] hover:bg-white/5 rounded-lg flex items-center gap-2 text-slate-300">
+                                        <i class="ph ph-text-t text-slate-500"></i> Copiar como Texto Plano
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- BOTÓN IA -->
+                            <button 
+                                @click="toggleAiChat()"
+                                class="ml-2 px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all">
+                                <i class="ph-fill ph-sparkle"></i>
+                                ASK AI
+                            </button>
+                        </div>
+                        </div>
+
+                        <!-- 3. Área de TipTap -->
+                        <div id="editor-container" class="prose prose-invert prose-indigo max-w-none">
+                            <div id="tiptap-content" class="min-h-[60vh] text-lg leading-relaxed text-slate-300 outline-none">
+                                <!-- TipTap se inyectará aquí -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 4. ZONA 4: EL INSPECTOR (DINÁMICO) -->
+    <aside class="glass-panel border-l border-white/5 flex flex-col shrink-0 relative transition-all duration-300"
+           x-show="!zenMode && mode !== 'dashboard'"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 translate-x-10"
+           x-transition:enter-end="opacity-100 translate-x-0"
+           x-transition:leave="transition ease-in duration-300"
+           x-transition:leave-start="opacity-100 translate-x-0"
+           x-transition:leave-end="opacity-0 translate-x-10"
+           :style="`width: ${inspectorWidth}px;`"
+           x-cloak>
+        
+        <!-- El Resizer Izquierdo de la Zona 4 -->
+        <div class="absolute top-0 left-0 w-1 h-full cursor-col-resize resizer-hover transition-colors z-50"
+             @mousedown="startResizeInspector()">
+        </div>
+
+        <!-- HEADER NUEVO INSPECTOR -->
+        <div class="p-6 pb-4 flex items-center justify-between border-b border-white/5 shrink-0">
+            <div class="flex items-center gap-2">
+                <i class="ph ph-info text-purple-400"></i>
+                <h2 class="text-[11px] font-bold tracking-[0.2em] text-slate-500 uppercase">Inspector</h2>
+            </div>
+            <button class="hover:text-white transition-colors">
+                <i class="ph ph-dots-three-horizontal text-slate-500"></i>
+            </button>
+        </div>
+
+        <!-- CONTENIDO SCROLLABLE NUEVO -->
+        <div class="flex-1 overflow-y-auto">
+            
+            <!-- SECCIÓN: TABLA DE CONTENIDOS -->
+            <section class="p-6">
+                <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-4">Tabla de Contenidos</h3>
+                <nav id="note-toc" class="space-y-1">
+                    <!-- JS inyectará aquí el TOC -->
+                </nav>
+            </section>
+
+            <!-- SECCIÓN: ETIQUETAS -->
+            <section class="px-6 py-4 border-t border-white/5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Etiquetas</h3>
+                    <button class="text-purple-400 hover:text-purple-300 transition-colors">
+                        <i class="ph ph-plus-circle w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+                <div id="note-tags" class="flex flex-wrap gap-2">
+                    <!-- JS inyectará aquí los Tags -->
+                </div>
+            </section>
+
+            <!-- SECCIÓN: ARCHIVOS ADJUNTOS -->
+            <section class="px-6 py-4 border-t border-white/5">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Archivos</h3>
+                        <!-- SPINNER DE CARGA (HTMX lo muestra automáticamente) -->
+                        <div id="upload-indicator" class="htmx-indicator">
+                            <i class="ph ph-circle-notch animate-spin text-indigo-500 text-xs"></i>
+                        </div>
+                    </div>
+                    
+                    <form id="attachment-form" 
+                        hx-post="/api/notes/upload-attachment" 
+                        hx-encoding="multipart/form-data" 
+                        hx-target="#note-attachments"
+                        hx-indicator="#upload-indicator"
+                        hx-trigger="change from:#file-input"
+                        class="flex">
+                        <input type="hidden" name="note_id" :value="activeNoteId">
+                        <input type="file" name="file" id="file-input" class="hidden">
+                        <button type="button" onclick="document.getElementById('file-input').click()" 
+                                class="text-purple-400 hover:text-purple-300 transition-colors">
+                            <i class="ph ph-paperclip w-3.5 h-3.5"></i>
+                        </button>
+                    </form>
+                </div>
+                
+                <div id="note-attachments" class="space-y-2">
+                    <!-- El contenido se carga aquí -->
+                    <span class="text-[10px] text-slate-700 italic">Selecciona una nota</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- SECCIÓN INFERIOR: SHARE Y EXPORT -->
+        <div class="p-6 bg-[#0d0f14] border-t border-white/5 shrink-0">
+            <div class="flex gap-2">
+                <button class="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[11px] font-medium text-slate-200 transition-all active:scale-[0.98]">
+                    <i class="ph ph-share-network w-3.5 h-3.5"></i>
+                    Share
+                </button>
+                
+                <button class="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-[11px] font-semibold shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]">
+                    <i class="ph ph-file-pdf w-3.5 h-3.5"></i>
+                    Export PDF
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Contenedor Global de Modales (Portal Sagrado) -->
+    <div id="modal-container" 
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        x-show="modalOpen" 
+        x-cloak 
+        x-transition:enter="transition opacity ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition opacity ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0">
+        
+        <!-- EL PORTAL SAGRADO: Único target permitido para inyección de modales -->
+        <div id="main-portal-target" 
+             @click.outside="modalOpen = false"
+             class="w-full max-w-md mx-4 relative z-[10000]">
+             <!-- El contenido se inyecta y limpia aquí mediante openModal() -->
+        </div>
+    </div>
+
+    <!-- PORTAL GLOBAL: Menú Contextual Multi-Contexto (Corregido) -->
+    <div id="global-gear-menu-portal" class="fixed inset-0 pointer-events-none z-[900]" x-cloak>
+        <div class="gear-dropdown-portal pointer-events-auto"
+             x-show="activeGearMenu !== null"
+             x-transition.opacity.duration.150ms
+             :style="`position: fixed; top: ${gearMenuCoords.y}px; left: ${gearMenuCoords.x}px; z-index: 901;`"
+             @click.outside="activeGearMenu = null"
+             style="display: none;">
+            
+            <!-- CASO A: BIBLIOTECAS (Prefix CAT_) -->
+            <template x-if="activeGearMenu && activeGearMenu.toString().startsWith('CAT_')">
+                <div class="flex flex-col">
+                    <button type="button" @click="openModal(`/partial/modal/edit-categoria/${activeGearMenu.replace('CAT_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn">
+                        <i class="ph ph-pencil-simple text-sm"></i> <span>Editar Biblioteca</span>
+                    </button>
+                    <button type="button" @click="openModal(`/partial/modal/confirm-delete-categoria/${activeGearMenu.replace('CAT_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn text-red-400">
+                        <i class="ph ph-trash text-sm"></i> <span>Eliminar Biblioteca</span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- CASO B: CUADERNOS (Prefix NB_) -->
+            <template x-if="activeGearMenu && activeGearMenu.toString().startsWith('NB_')">
+                <div class="flex flex-col">
+                    <button type="button" @click="openModal(`/partial/modal/edit-cuaderno/${activeGearMenu.replace('NB_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn">
+                        <i class="ph ph-pencil-simple text-sm"></i> <span>Editar Cuaderno</span>
+                    </button>
+                    <button type="button" @click="openModal(`/partial/modal/confirm-delete-cuaderno/${activeGearMenu.replace('NB_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn text-red-400">
+                        <i class="ph ph-trash text-sm"></i> <span>Eliminar Cuaderno</span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- CASO C: NOTAS (Dentro de global-gear-menu-portal en base.html) -->
+            <template x-if="activeGearMenu && !activeGearMenu.toString().startsWith('CAT_') && !activeGearMenu.toString().startsWith('NB_') && !activeGearMenu.toString().startsWith('TM_')">
+                <div class="flex flex-col">
+                    <button @click="openQuickView(activeGearMenu); activeGearMenu = null" class="gear-dropdown-btn">
+                        <i class="ph ph-eye text-sm"></i> <span>Quick View</span>
+                    </button>
+                    <button @click="openModal(`/partial/modal/inbox-mover/${activeGearMenu}`); activeGearMenu = null;" class="gear-dropdown-btn">
+                        <i class="ph ph-arrow-right text-sm"></i> <span>Mover Nota</span>
+                    </button>
+                    <!-- NUEVO: Botón de eliminación con modal corregido -->
+                    <button @click="openModal(`/partial/modal/eliminar-nota/${activeGearMenu}`); activeGearMenu = null;" 
+                            class="gear-dropdown-btn text-red-400">
+                        <i class="ph ph-trash text-sm"></i> <span>Eliminar Nota</span>
+                    </button>
+                </div>
+            </template>
+
+            <!-- CASO D: TEMAS (Prefix TM_) -->
+            <template x-if="activeGearMenu && activeGearMenu.toString().startsWith('TM_')">
+                <div class="flex flex-col">
+                    <button type="button" @click="openModal(`/partial/modal/edit-tema/${activeGearMenu.replace('TM_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn">
+                        <i class="ph ph-pencil-simple text-sm"></i> <span>Editar Tema</span>
+                    </button>
+                    <button type="button" @click="openModal(`/partial/modal/confirm-delete-tema/${activeGearMenu.replace('TM_', '')}`); activeGearMenu = null;" class="gear-dropdown-btn text-red-400">
+                        <i class="ph ph-trash text-sm"></i> <span>Eliminar Tema</span>
+                    </button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- PORTAL: AI PROMPT MODAL (NUEVO - NATIVO TIPTAP)
+         
+         ARQUITECTURA:
+         - Escucha eventos emitidos por AICommand extension
+         - "ai:command:open" → Abre modal
+         - "ai:command:close" → Cierra modal
+         - "ai:command:select" → Procesa la acción seleccionada
+         
+         NO manipula el "/" menu directamente - Tiptap lo maneja.
+         Solo gestionamos el modal de prompt después que usuario selecciona "Ask AI".
+    -->
+    <div id="ai-prompt-modal" 
+        x-show="aiPrompt.show"
+        x-transition.scale.95
+        class="fixed z-[1000] w-[450px] bg-[#1a1d26] border border-indigo-500/30 rounded-xl shadow-2xl overflow-hidden"
+        :style="`
+            top: ${Math.min(aiPrompt.y, window.innerHeight - 280)}px;
+            left: ${Math.max(16, Math.min(aiPrompt.x, window.innerWidth - 466))}px;
+        `"
+        @click.away="if(!aiPrompt.streaming) aiPrompt.show = false">
+        
+        <!-- Header -->
+        <div class="p-3 bg-[#0f1117]/50 border-b border-white/5 flex items-center gap-3">
+            <i class="ph-fill ph-sparkle text-indigo-400"></i>
+            <input type="text" 
+                x-model="aiPrompt.input"
+                :disabled="aiPrompt.streaming"
+                placeholder="Tell AI what you want to change..." 
+                class="bg-transparent border-none focus:ring-0 text-sm text-white flex-1 outline-none disabled:opacity-50"
+                @keydown.enter="if(!aiPrompt.streaming) window.dispatchEvent(new CustomEvent('ai:prompt:submit', { detail: { input: aiPrompt.input } }))">
+            <button 
+                :disabled="aiPrompt.streaming"
+                @click="if(!aiPrompt.streaming) window.dispatchEvent(new CustomEvent('ai:prompt:submit', { detail: { input: aiPrompt.input } }))"
+                class="p-1 text-slate-500 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50 rounded">
+                <!-- Flecha estática (idle) -->
+                <svg x-show="!aiPrompt.streaming" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3.5 10a.5.5 0 0 1 .5-.5h11.793l-5.147-5.146a.5.5 0 0 1 .707-.707l6 6a.5.5 0 0 1 0 .707l-6 6a.5.5 0 0 1-.707-.707l5.146-5.147H4a.5.5 0 0 1-.5-.5z"/></svg>
+                <!-- Spinner (enviando) -->
+                <svg x-show="aiPrompt.streaming" class="w-5 h-5 animate-spin text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Respuesta -->
+        <div x-show="aiPrompt.response" class="px-4 py-3 bg-[#0f1117]/30 border-b border-white/5 max-h-48 overflow-y-auto">
+            <p x-text="aiPrompt.response" class="text-sm text-slate-300 whitespace-pre-wrap"></p>
+        </div>
+
+        <!-- Footer: Botones de control -->
+        <div class="px-3 py-2 bg-[#1a1d26] flex justify-between items-center">
+            <button 
+                :disabled="aiPrompt.streaming"
+                @click="if(!aiPrompt.streaming) window.dispatchEvent(new CustomEvent('ai:prompt:submit', { detail: { input: aiPrompt.input } }))"
+                class="flex items-center gap-2 text-[11px] text-slate-500 hover:text-white transition-colors disabled:opacity-50">
+                <i class="ph ph-arrows-clockwise"></i> Retry
+            </button>
+            <div class="flex gap-2">
+                <button 
+                    :disabled="aiPrompt.streaming"
+                    @click="aiPrompt.show = false; aiPrompt.input = ''; aiPrompt.response = ''"
+                    class="px-3 py-1.5 text-[11px] font-bold text-slate-400 hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50">
+                    <i class="ph ph-x"></i> Close
+                </button>
+                <button 
+                    :disabled="!aiPrompt.response || aiPrompt.streaming"
+                    @click="window.dispatchEvent(new CustomEvent('ai:prompt:apply', { detail: { input: aiPrompt.input, response: aiPrompt.response } }))"
+                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-[11px] font-bold rounded-lg transition-all flex items-center gap-1">
+                    <i class="ph ph-check"></i> Apply
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspector UI - Fixed</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0d0f14; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2d3139; border-radius: 10px; }
+    </style>
+</head>
+<body class="text-slate-300 antialiased">
+
+    <aside 
+        x-data="{ 
+            activeToc: 1,
+            tags: ['Base de datos', 'PostgreSQL', 'Esquema'],
+            attachments: [
+                { id: 1, name: 'backup_process.py' },
+                { id: 2, name: 'import_os.py' }
+            ],
+            removeTag(index) { this.tags.splice(index, 1) },
+            removeFile(id) { this.attachments = this.attachments.filter(f => f.id !== id) }
+        }"
+        x-init="$nextTick(() => lucide.createIcons())"
+        class="w-80 h-screen border-l border-white/5 flex flex-col bg-[#0d0f14] fixed right-0 top-0 shadow-2xl"
+    >
+        
+        <!-- HEADER (Igual a la V1) -->
+        <div class="p-6 pb-4 flex items-center justify-between border-b border-white/5">
+            <div class="flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4 text-purple-400"></i>
+                <h2 class="text-[11px] font-bold tracking-[0.2em] text-slate-500 uppercase">Inspector</h2>
+            </div>
+            <button class="hover:text-white transition-colors">
+                <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+            </button>
+        </div>
+
+        <!-- CONTENIDO SCROLLABLE -->
+        <div class="flex-1 overflow-y-auto">
+            
+            <!-- SECCIÓN: TABLA DE CONTENIDOS (Igual a la V1) -->
+            <section class="p-6">
+                <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-4">Tabla de Contenidos</h3>
+                <nav class="space-y-1">
+                    <template x-for="(item, index) in ['Definición del Esquema', 'Tabla: cuadernos', 'Tabla: temas', 'Tabla: anotaciones']">
+                        <a href="#" @click.prevent="activeToc = index"
+                            :class="activeToc === index ? 'text-purple-400 bg-purple-500/5' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'"
+                            class="flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all duration-200">
+                            <span :class="activeToc === index ? 'bg-purple-400 w-1.5 h-1.5' : 'bg-slate-700 w-1 h-1'" class="rounded-full"></span>
+                            <span x-text="item"></span>
+                        </a>
+                    </template>
+                </nav>
+            </section>
+
+            <!-- SECCIÓN: ETIQUETAS (Restaurado icono plus-circle) -->
+            <section class="px-6 py-4 border-t border-white/5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Etiquetas</h3>
+                    <button class="text-purple-400 hover:text-purple-300 transition-colors">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="(tag, index) in tags" :key="index">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[11px] text-slate-300">
+                            <span x-text="tag"></span>
+                            <button @click="removeTag(index)" class="hover:text-red-400">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </span>
+                    </template>
+                </div>
+            </section>
+
+            <!-- SECCIÓN: ARCHIVOS ADJUNTOS (Icono eliminar siempre visible) -->
+            <section class="px-6 py-4 border-t border-white/5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Archivos</h3>
+                    <button class="text-purple-400 hover:text-purple-300 transition-colors">
+                        <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    <template x-for="file in attachments" :key="file.id">
+                        <div class="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-all">
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i>
+                                <span class="text-xs text-slate-400" x-text="file.name"></span>
+                            </div>
+                            <!-- Botón eliminar ahora visible sin hover -->
+                            <button @click="removeFile(file.id)" class="text-slate-600 hover:text-red-400 transition-colors">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </section>
+        </div>
+
+        <!-- SECCIÓN INFERIOR: SHARE Y EXPORT EN UNA SOLA LÍNEA -->
+        <div class="p-6 bg-[#0d0f14] border-t border-white/5">
+            <div class="flex gap-2">
+                <button class="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[11px] font-medium text-slate-200 transition-all active:scale-[0.98]">
+                    <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                    Share
+                </button>
+                
+                <button class="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-[11px] font-semibold shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]">
+                    <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+                    Export PDF
+                </button>
+            </div>
+        </div>
+
+    </aside>
+
+    <script>
+        // Esto asegura que los iconos se carguen incluso dentro de los loops de Alpine
+        document.addEventListener('alpine:initialized', () => {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

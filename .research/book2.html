@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge OS - Zen Concept</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sepia-bg: #f4ecd8;
+            --sepia-paper: #fdfaf3;
+            --dark-bg: #0f1117;
+            --dark-paper: #1a1d26;
+        }
+
+        body { font-family: 'Inter', sans-serif; transition: all 0.5s ease; }
+        .serif { font-family: 'Crimson Pro', serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* MODOS DE COLOR */
+        .zen-writer { background-color: var(--sepia-bg); color: #433422; }
+        .zen-study { background-color: var(--dark-bg); color: #cbd5e1; }
+
+        /* EL PAPEL (APILADO) */
+        .paper-stack {
+            width: 21cm;
+            min-height: 29.7cm;
+            padding: 3cm 2.5cm;
+            margin: 4rem auto;
+            position: relative;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Efecto de hojas apiladas (Axioma de Finitud) */
+        .zen-writer .paper-stack {
+            background-color: var(--sepia-paper);
+            box-shadow: 
+                0 1px 1px rgba(0,0,0,0.1),
+                0 10px 0 -5px var(--sepia-paper),
+                0 10px 1px -4px rgba(0,0,0,0.1),
+                0 20px 0 -10px var(--sepia-paper),
+                0 20px 1px -9px rgba(0,0,0,0.1);
+        }
+
+        .zen-study .paper-stack {
+            background-color: var(--dark-paper);
+            width: 900px;
+            padding: 2rem 4rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* LÍNEA DE ENFOQUE (TYPEWRITER MODE) */
+        .focus-line {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1.8em;
+            background: rgba(99, 102, 241, 0.05);
+            border-top: 1px solid rgba(99, 102, 241, 0.1);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* NOTAS AL MARGEN (MODO ESTUDIO) */
+        .margin-note {
+            position: absolute;
+            right: -260px;
+            width: 220px;
+            font-size: 0.75rem;
+            padding: 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 2px solid #6366f1;
+            border-radius: 0 0.5rem 0.5rem 0;
+            color: #a5b4fc;
+        }
+
+        /* CURSOR MÁQUINA DE ESCRIBIR */
+        .typewriter-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #6366f1;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="{ lens: 'writer' }" :class="'zen-' + lens">
+
+    <!-- LÍNEA DE GUÍA (Solo visible en Escritura) -->
+    <div class="focus-line" x-show="lens === 'writer'" x-transition></div>
+
+    <!-- NAVEGACIÓN DE MODOS (EFÍMERA) -->
+    <nav class="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-white/10 backdrop-blur-lg border border-white/20 p-1 rounded-2xl flex gap-1 shadow-2xl">
+        <button @click="lens = 'writer'" 
+                :class="lens === 'writer' ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white'"
+                class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+            <i class="ph-fill ph-pen-nib"></i> Manuscrito
+        </button>
+        <button @click="lens = 'study'" 
+                :class="lens === 'study' ? 'bg-indigo-600 text-white' : 'text-white/40 hover:text-white'"
+                class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+            <i class="ph-fill ph-microscope"></i> Laboratorio
+        </button>
+    </nav>
+
+    <!-- LIENZO PRINCIPAL -->
+    <main class="relative z-20">
+        
+        <article class="paper-stack transition-all duration-700">
+            
+            <!-- HEADER DE PÁGINA -->
+            <header class="mb-16 text-center" :class="lens === 'study' ? 'text-left mb-8' : ''">
+                <h1 class="text-4xl font-semibold opacity-90 serif italic" 
+                    :class="lens === 'study' ? 'not-italic font-sans text-white text-3xl mb-2' : ''">
+                    El Nombre del Viento
+                </h1>
+                <p class="text-[10px] tracking-[0.3em] uppercase opacity-40 font-sans">
+                    <span x-show="lens === 'writer'">Capítulo Uno: Un lugar de silencios</span>
+                    <span x-show="lens === 'study'">Material de Análisis / Filosofía</span>
+                </p>
+            </header>
+
+            <!-- CONTENIDO EDITORIAL -->
+            <div class="serif text-xl leading-relaxed space-y-8 outline-none" 
+                 :class="lens === 'study' ? 'font-sans text-base text-slate-300' : ''"
+                 contenteditable="true">
+                
+                <p class="relative">
+                    Hacía calor en la posada Roca de Guía. Era el calor sofocante y sordo de los finales de otoño. Era un calor hecho de silencios, y el silencio de la posada era un silencio triple.
+                    
+                    <!-- Nota al margen (Solo estudio) -->
+                    <span x-show="lens === 'study'" class="margin-note top-0">
+                        <b class="block mb-1 text-indigo-400">ANÁLISIS DE IA</b>
+                        La estructura del "silencio triple" establece una atmósfera de misticismo. ¿Quieres ver cómo lo usa el autor en otros capítulos?
+                    </span>
+                </p>
+
+                <p>
+                    El silencio más obvio era una calma hueca y desolada, hecha de las cosas que faltaban. Si hubiera soplado el viento, este habría suspirado entre las ramas, habría hecho chirriar el letrero de la posada en sus fijaciones.
+                    
+                    <span x-show="lens === 'study'" class="inline-flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-1 rounded cursor-help">
+                        chirriar <i class="ph ph-sparkle text-[10px]"></i>
+                    </span>
+                </p>
+
+                <!-- SALTO DE PÁGINA VISUAL -->
+                <div class="h-px bg-current opacity-5 my-12 relative flex justify-center items-center" x-show="lens === 'writer'">
+                    <span class="bg-inherit px-4 text-[10px] uppercase tracking-widest opacity-20 serif italic">Página Siguiente</span>
+                </div>
+
+                <p>
+                    Kote se encontraba tras la barra, frotando un trozo de madera de pino con un trapo blanco. El movimiento era rítmico, pausado, casi una meditación. 
+                    <span x-show="lens === 'writer'" class="typewriter-cursor"></span>
+                </p>
+
+                <p x-show="lens === 'study'" class="p-4 bg-white/5 rounded-xl border border-white/10 italic text-slate-400">
+                    "El hombre tenía el cabello de un rojo tan brillante como el fuego, y sus ojos eran distantes, como los de alguien que ha visto demasiado mundo."
+                </p>
+            </div>
+
+            <!-- MARCA DE AGUA / PÁGINA -->
+            <footer class="mt-24 text-center opacity-30 font-sans text-xs tracking-widest">
+                — <span x-text="lens === 'writer' ? 'Folio 1' : 'Sección 1.1'"></span> —
+            </footer>
+        </article>
+
+    </main>
+
+    <!-- BARRA DE ESTADO INFERIOR -->
+    <div class="fixed bottom-6 left-0 right-0 px-12 flex justify-between items-end pointer-events-none">
+        
+        <!-- Stats Izquierda -->
+        <div class="bg-black/10 backdrop-blur-md px-4 py-2 rounded-lg border border-white/5 text-[10px] uppercase tracking-widest opacity-60 pointer-events-auto">
+            <span class="font-bold" x-text="lens === 'writer' ? '428 palabras' : '8 min lectura'"></span>
+        </div>
+
+        <!-- Atajos IA Derecha -->
+        <div class="flex flex-col gap-2 items-end">
+            <template x-if="lens === 'study'">
+                <button class="bg-indigo-600 text-white p-3 rounded-full shadow-2xl pointer-events-auto hover:scale-110 transition-transform">
+                    <i class="ph-fill ph-sparkle text-xl"></i>
+                </button>
+            </template>
+            <div class="bg-black/10 backdrop-blur-md px-4 py-2 rounded-lg border border-white/5 text-[10px] uppercase tracking-widest opacity-60 pointer-events-auto">
+                Autoguardado: <span class="mono">Sync OK</span>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

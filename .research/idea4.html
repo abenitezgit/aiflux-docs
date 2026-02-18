@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Knowledge OS - Master Version</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .serif-text { font-family: 'Merriweather', serif; }
+        .mono-text { font-family: 'JetBrains Mono', monospace; }
+
+        /* Estilos base del sistema */
+        .glass { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glass-panel { background: #13151b; border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        
+        /* Editor centrado */
+        .editor-paper { max-width: 68ch; margin: 0 auto; }
+        
+        /* Scrollbars ocultos */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animaciones */
+        .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+
+        /* Efecto de foco en cards */
+        .smart-card { transition: all 0.3s ease; }
+        .smart-card:hover { transform: translateY(-2px); border-color: rgba(99, 102, 241, 0.4); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5); }
+    </style>
+</head>
+<body class="bg-[#0f1117] text-slate-300 h-screen overflow-hidden flex selection:bg-indigo-500/30 selection:text-indigo-200" x-data="appData()">
+
+    <!-- 1. NAVEGACIÓN PRINCIPAL (Extrema Izquierda) -->
+    <nav class="w-16 bg-[#0B0C10] border-r border-white/5 flex flex-col items-center py-6 z-50 shrink-0">
+        <div class="mb-8 text-indigo-500 text-3xl hover:text-white transition-colors cursor-pointer"><i class="ph-fill ph-brain"></i></div>
+        
+        <div class="flex flex-col gap-4 w-full px-2">
+            <!-- Inicio -->
+            <button @click="setMode('dashboard')" :class="mode === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-squares-four text-xl"></i>
+                <span class="absolute left-14 bg-[#1e222e] text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Inicio</span>
+            </button>
+
+            <!-- Inbox (Con Badge) -->
+            <button @click="setMode('inbox')" :class="mode === 'inbox' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25' : 'text-slate-500 hover:text-amber-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-tray text-xl"></i>
+                <span x-show="inboxCount > 0" class="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold px-1 rounded-full border border-[#0B0C10]" x-text="inboxCount"></span>
+                <span class="absolute left-14 bg-[#1e222e] text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Inbox</span>
+            </button>
+
+            <!-- Proyectos -->
+            <button @click="setMode('projects')" :class="mode === 'projects' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative">
+                <i class="ph-fill ph-folder-notch text-xl"></i>
+                <span class="absolute left-14 bg-[#1e222e] text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 whitespace-nowrap z-50 pointer-events-none">Proyectos</span>
+            </button>
+        </div>
+        
+        <div class="mt-auto mb-4 group relative">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-400 to-indigo-500 border-2 border-[#0B0C10] ring-2 ring-indigo-500/30 cursor-pointer"></div>
+        </div>
+    </nav>
+
+
+    <!-- 2. BARRA LATERAL CONTEXTUAL (Izquierda) -->
+    <aside class="w-64 glass-panel flex flex-col transition-all duration-300 shrink-0" :class="zenMode ? '-ml-64 opacity-50' : ''">
+        
+        <div class="h-14 flex items-center px-5 border-b border-white/5 justify-between bg-[#13151b]">
+            <span class="text-xs font-bold tracking-widest text-slate-500 uppercase" x-text="leftPanelTitle"></span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto no-scrollbar p-3">
+            
+            <!-- CONTENIDO: DASHBOARD (Agenda + Stats) -->
+            <div x-show="mode === 'dashboard'" class="space-y-6 fade-in-up">
+                <!-- Mini Calendario / Agenda -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <i class="ph-bold ph-calendar-blank"></i> Para Hoy
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-colors cursor-pointer group">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs text-indigo-300 bg-indigo-500/10 px-1.5 rounded">14:00</span>
+                                <i class="ph-fill ph-check-circle text-slate-600 hover:text-emerald-500"></i>
+                            </div>
+                            <div class="text-sm text-slate-200 group-hover:text-white">Implementar LiteLLM</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumen de Inbox -->
+                <div class="p-4 bg-gradient-to-br from-amber-500/5 to-orange-500/5 rounded-lg border border-amber-500/10">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-amber-500 text-xs font-bold uppercase">Bandeja</span>
+                        <span class="text-xs bg-amber-500/20 text-amber-400 px-1.5 rounded" x-text="inboxCount"></span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3 leading-relaxed">Notas rápidas esperando ser procesadas por la IA.</p>
+                    <button @click="setMode('inbox')" class="w-full py-1.5 bg-amber-500/10 text-amber-400 hover:text-white text-xs rounded hover:bg-amber-500 transition-colors border border-amber-500/20">Revisar</button>
+                </div>
+            </div>
+
+            <!-- CONTENIDO: PROYECTOS (Árbol) -->
+            <div x-show="mode === 'projects'" class="text-sm text-slate-400 fade-in-up">
+                <div class="pl-2 py-2 hover:text-white cursor-pointer"><i class="ph-fill ph-books mr-2"></i> Biblioteca</div>
+                <div class="mt-1">
+                    <div class="pl-2 py-1.5 bg-indigo-500/10 text-indigo-300 rounded-md flex items-center gap-2 cursor-pointer border border-indigo-500/20">
+                        <i class="ph-fill ph-folder-open"></i> Proyectos
+                    </div>
+                    <div class="pl-6 border-l border-white/10 ml-3.5 mt-1 space-y-1">
+                        <div class="py-1.5 pl-2 text-white cursor-pointer hover:bg-white/5 rounded flex justify-between group">
+                            <span>Análisis IA</span>
+                            <span class="text-[10px] bg-slate-700 px-1 rounded opacity-0 group-hover:opacity-100">12</span>
+                        </div>
+                        <div class="py-1.5 pl-2 hover:text-white cursor-pointer hover:bg-white/5 rounded">Finanzas SaaS</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTENIDO: EDITOR (TOC) -->
+            <div x-show="mode === 'writer'" class="fade-in-up">
+                <div class="text-xs font-bold text-slate-500 mb-3 uppercase pl-2">Tabla de Contenidos</div>
+                <nav class="space-y-1 text-sm border-l border-slate-700 ml-2 pl-3">
+                    <a href="#" class="block text-indigo-400 border-l-2 border-indigo-500 -ml-[14px] pl-3 py-1">Introducción</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1 transition-colors">Configuración</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1 pl-2 text-xs transition-colors">API Keys</a>
+                    <a href="#" class="block text-slate-400 hover:text-white py-1 transition-colors">Conclusión</a>
+                </nav>
+            </div>
+        </div>
+    </aside>
+
+
+    <!-- 3. ÁREA PRINCIPAL (Centro) -->
+    <main class="flex-1 flex flex-col relative bg-[#0f1117] transition-all">
+        
+        <!-- Header Minimal -->
+        <header class="h-14 flex items-center justify-between px-8 border-b border-white/5 shrink-0 bg-[#0f1117]/80 backdrop-blur-md z-10 sticky top-0">
+            <div class="flex items-center gap-2 text-sm text-slate-500">
+                <i class="ph-bold ph-house text-xs" x-show="mode === 'dashboard'"></i>
+                <i class="ph-bold ph-pen-nib text-xs" x-show="mode === 'writer'"></i>
+                <span x-text="modeDisplay"></span>
+                <i class="ph-bold ph-caret-right text-xs" x-show="currentNote.title"></i>
+                <span class="text-white truncate max-w-md font-medium" x-text="currentNote.title"></span>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1 text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 border border-white/5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>LiteLLM Online</span>
+                </div>
+                <button @click="zenMode = !zenMode" class="text-slate-500 hover:text-white transition-colors p-1 rounded hover:bg-white/5">
+                    <i :class="zenMode ? 'ph-fill ph-arrows-in-line-horizontal' : 'ph-fill ph-arrows-out-line-horizontal'"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- CANVAS SCROLLEABLE -->
+        <div class="flex-1 overflow-y-auto relative no-scrollbar">
+            
+            <!-- VISTA: DASHBOARD (RICA EN INFORMACIÓN) -->
+            <div x-show="mode === 'dashboard'" class="max-w-5xl mx-auto py-12 px-8">
+                
+                <!-- 1. Saludo y Briefing (V1/V2) -->
+                <div class="mb-10 fade-in-up">
+                    <h1 class="text-3xl font-light text-white mb-2">Hola, <span class="font-medium text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Creador.</span></h1>
+                    <p class="text-slate-400 text-lg flex items-center gap-2">
+                        <i class="ph-fill ph-sparkle text-indigo-400"></i>
+                        Tu foco ayer fue <span class="text-white border-b border-indigo-500/30">Python & IA</span>. Tienes 3 ideas pendientes de desarrollar.
+                    </p>
+                </div>
+
+                <!-- 2. Omnibar de Captura (V3) -->
+                <div class="relative group mb-12 fade-in-up delay-100">
+                    <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                    <div class="relative bg-[#1a1d26] rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                        <textarea 
+                            x-model="quickInput"
+                            @keydown.enter.prevent="handleQuickCapture()"
+                            placeholder="¿Qué estás pensando? Escribe para capturar, '/' para comandos..." 
+                            class="w-full bg-transparent border-none text-white text-lg px-6 py-5 focus:ring-0 placeholder-slate-500 font-light resize-none h-20"
+                        ></textarea>
+                        <div class="px-4 py-2 bg-[#15171e] flex justify-between items-center border-t border-white/5">
+                            <div class="flex gap-3 text-xs text-slate-500 font-mono">
+                                <span class="hover:text-white cursor-pointer"><span class="bg-[#252836] px-1.5 py-0.5 rounded mr-1">⌘K</span> Buscar</span>
+                                <span class="hover:text-white cursor-pointer"><span class="bg-[#252836] px-1.5 py-0.5 rounded mr-1">/</span> Prompt</span>
+                            </div>
+                            <button @click="handleQuickCapture()" class="text-indigo-400 hover:text-white transition-colors">
+                                <i class="ph-bold ph-arrow-return-left"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Grid de Tarjetas "Vivas" (V1) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 fade-in-up delay-200">
+                    
+                    <!-- Card: En Foco (Proyecto Activo) -->
+                    <div @click="setMode('projects')" class="smart-card bg-[#15171e] p-5 rounded-2xl border border-white/5 cursor-pointer relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <i class="ph-fill ph-folder-open text-6xl text-indigo-500"></i>
+                        </div>
+                        <div class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Proyecto Activo</div>
+                        <h3 class="text-white text-lg font-medium mb-1">Análisis de Proyectos</h3>
+                        <p class="text-sm text-slate-400 mb-4 line-clamp-2">Estás documentando la integración de IA. Última edición hace 2 horas.</p>
+                        <div class="flex items-center gap-2 text-xs text-slate-500">
+                            <span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded">12 notas</span>
+                            <span class="bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded">Dev</span>
+                        </div>
+                    </div>
+
+                    <!-- Card: Serendipia (Conexiones) -->
+                    <div class="smart-card bg-[#15171e] p-5 rounded-2xl border border-white/5 cursor-pointer relative overflow-hidden group hover:border-amber-500/30">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <i class="ph-fill ph-lightbulb text-6xl text-amber-500"></i>
+                        </div>
+                        <div class="text-xs font-bold text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i class="ph-bold ph-link"></i> Conexión
+                        </div>
+                        <h3 class="text-white text-lg font-medium mb-1">Docker + Embeddings</h3>
+                        <p class="text-sm text-slate-400 mb-4">La IA detectó similitudes entre "Despliegue Local" y "Supabase Vector".</p>
+                        <button class="text-xs bg-amber-500/10 text-amber-300 px-3 py-1.5 rounded border border-amber-500/20 hover:bg-amber-500 hover:text-white transition-colors">Fusionar Notas</button>
+                    </div>
+
+                    <!-- Card: Mantenimiento (Jardinero) -->
+                    <div class="smart-card bg-[#15171e] p-5 rounded-2xl border border-white/5 cursor-pointer relative overflow-hidden group hover:border-emerald-500/30">
+                         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <i class="ph-fill ph-plant text-6xl text-emerald-500"></i>
+                        </div>
+                        <div class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Jardinero</div>
+                        <h3 class="text-white text-lg font-medium mb-1">Etiquetado Auto</h3>
+                        <p class="text-sm text-slate-400 mb-4">Hay 4 notas en Inbox sin etiquetas. ¿Aplicar taxonomía automática?</p>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div class="bg-emerald-500 h-full w-2/3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Notas Recientes (Masonry Grid V1) -->
+                <div class="fade-in-up delay-300">
+                    <h3 class="text-slate-500 text-sm font-bold uppercase tracking-widest mb-4">Trabajo Reciente</h3>
+                    <div class="columns-1 md:columns-2 gap-6 space-y-6">
+                        <!-- Nota 1 -->
+                        <div @click="setMode('writer'); currentNote.title='Configuración LiteLLM'" class="break-inside-avoid bg-[#15171e] p-5 rounded-xl border border-white/5 hover:border-indigo-500/40 cursor-pointer transition-colors group">
+                            <h4 class="text-white font-medium mb-2 group-hover:text-indigo-400 transition-colors">Configuración LiteLLM</h4>
+                            <p class="text-slate-400 text-sm mb-3 leading-relaxed">Snippet para configurar el fallback entre OpenAI y Anthropic usando el proxy server...</p>
+                            <div class="flex gap-2">
+                                <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded">#python</span>
+                                <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded">#ai</span>
+                            </div>
+                        </div>
+                         <!-- Nota 2 -->
+                        <div class="break-inside-avoid bg-[#15171e] p-5 rounded-xl border border-white/5 hover:border-indigo-500/40 cursor-pointer transition-colors group">
+                            <h4 class="text-white font-medium mb-2 group-hover:text-indigo-400 transition-colors">Ideas App V4</h4>
+                            <p class="text-slate-400 text-sm mb-3 leading-relaxed">Definir estructura de 3 columnas y usar Alpine para la reactividad...</p>
+                            <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded">#design</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA: EDITOR / WRITER / INBOX (EL FOCO) -->
+            <div x-show="mode === 'writer' || mode === 'inbox'" class="h-full flex flex-col fade-in-up">
+                
+                <!-- Aviso si es Inbox -->
+                <div x-show="mode === 'inbox'" class="bg-amber-500/10 border-b border-amber-500/10 px-6 py-2 flex items-center justify-center gap-2 text-xs text-amber-300">
+                    <i class="ph-fill ph-tray"></i>
+                    Modo Inbox: Esta nota aún no está clasificada.
+                </div>
+
+                <div class="flex-1 py-12 px-8 editor-paper">
+                    <input type="text" x-model="currentNote.title" 
+                           class="w-full bg-transparent text-4xl font-bold text-white mb-8 border-none focus:ring-0 placeholder-slate-600 outline-none leading-tight"
+                           placeholder="Título...">
+
+                    <!-- Contenido Simulado -->
+                    <div class="serif-text text-lg leading-loose text-[#d1d5db] space-y-6 outline-none min-h-[60vh]" contenteditable="true" x-ref="editor">
+                        <p>LiteLLM funciona como un proxy gateway unificado para llamar a más de 100 modelos (OpenAI, Anthropic, Azure, etc.).</p>
+                        <p>Lo interesante para nuestra app en <b>FastAPI</b> es que permite gestionar presupuestos.</p>
+                        <p class="text-slate-500 italic">Escribe "/" para invocar a la IA...</p>
+                    </div>
+                    <div class="h-32"></div> <!-- Espacio extra abajo -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+
+    <!-- 4. PANEL DERECHO (AI COPILOT) -->
+    <aside class="w-80 glass-panel flex flex-col shrink-0 relative z-20" :class="zenMode ? '-mr-80 opacity-0' : ''">
+         <div class="h-14 flex items-center px-6 border-b border-white/5 justify-between bg-[#13151b]">
+            <span class="text-xs font-bold text-indigo-400 uppercase flex items-center gap-2">
+                <i class="ph-fill ph-magic-wand"></i> Copiloto
+            </span>
+            <button class="text-slate-500 hover:text-white"><i class="ph ph-dots-three"></i></button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-5 space-y-6">
+            
+            <!-- Contexto IA -->
+            <div x-show="mode === 'writer' || mode === 'inbox'" class="fade-in-up">
+                <div class="bg-[#1e222e] rounded-xl p-4 border border-indigo-500/20 shadow-lg relative">
+                    <div class="absolute -left-2 top-4 w-2 h-2 bg-[#1e222e] border-l border-b border-indigo-500/20 transform rotate-45"></div>
+                    <p class="text-sm text-slate-300 leading-relaxed mb-3">
+                        Detecto que hablas de <b class="text-white">LiteLLM</b>.
+                    </p>
+                    <p class="text-xs text-slate-400 mb-3">
+                        En tu proyecto "Finanzas SaaS" tienes una nota sobre <i>Budget Management</i>. ¿Quieres relacionarlas?
+                    </p>
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs py-1.5 rounded transition-all border border-indigo-500/30">Sí, relacionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats del Sistema (Visible en Dashboard) -->
+            <div x-show="mode === 'dashboard'" class="fade-in-up delay-100">
+                <h5 class="text-xs font-bold text-slate-500 uppercase mb-3">Estado del Sistema</h5>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-400">Tokens hoy</span>
+                        <span class="text-white font-mono">12,450</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-400">Costo est.</span>
+                        <span class="text-emerald-400 font-mono">$0.04</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-1 mt-2">
+                        <div class="bg-indigo-500 h-full w-1/4"></div>
+                    </div>
+                </div>
+
+                <h5 class="text-xs font-bold text-slate-500 uppercase mt-8 mb-3">Sugerencias Rápidas</h5>
+                <div class="space-y-2">
+                    <div class="p-2 rounded hover:bg-white/5 cursor-pointer text-xs text-slate-300 border border-transparent hover:border-white/10 transition-colors">
+                        <i class="ph-bold ph-plus-circle text-indigo-400 mr-1"></i> Crear entrada de diario
+                    </div>
+                    <div class="p-2 rounded hover:bg-white/5 cursor-pointer text-xs text-slate-300 border border-transparent hover:border-white/10 transition-colors">
+                        <i class="ph-bold ph-arrows-merge text-amber-400 mr-1"></i> Revisar conexiones
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Chat Input -->
+        <div class="p-4 border-t border-white/5 bg-[#13151b]">
+            <div class="relative">
+                <input type="text" placeholder="Pregunta a la IA..." class="w-full bg-[#0f1117] border border-white/10 rounded-lg py-2 pl-3 pr-8 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors placeholder-slate-600">
+                <button class="absolute right-2 top-2 text-indigo-500 hover:text-white"><i class="ph-fill ph-paper-plane-right"></i></button>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        function appData() {
+            return {
+                mode: 'dashboard', // dashboard, projects, writer, inbox
+                zenMode: false,
+                quickInput: '',
+                inboxCount: 3,
+                
+                currentNote: {
+                    title: '',
+                    body: ''
+                },
+
+                get modeDisplay() {
+                    const t = { 'dashboard': 'Centro de Mando', 'projects': 'Biblioteca', 'writer': 'Editor', 'inbox': 'Bandeja de Entrada' };
+                    return t[this.mode];
+                },
+                get leftPanelTitle() {
+                    const t = { 'dashboard': 'Agenda & Resumen', 'projects': 'Explorador', 'writer': 'Estructura', 'inbox': 'Pendientes' };
+                    return t[this.mode];
+                },
+
+                setMode(m) {
+                    this.mode = m;
+                    if (m === 'dashboard') {
+                        this.currentNote.title = ''; 
+                    }
+                },
+
+                handleQuickCapture() {
+                    if (this.quickInput.trim() === '') return;
+                    
+                    const content = this.quickInput;
+                    const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    this.currentNote = {
+                        title: `Nota rápida ${timestamp}`,
+                        body: content
+                    };
+                    
+                    // Efecto visual
+                    this.inboxCount++;
+                    this.quickInput = '';
+                    this.setMode('inbox');
+                    
+                    setTimeout(() => {
+                        if(this.$refs.editor) this.$refs.editor.innerText = content;
+                    }, 100);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

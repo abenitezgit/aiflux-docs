@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zen Writer Pro - Concepto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        /* Tipografía de libro */
+        .prose-book {
+            font-family: 'Crimson Pro', serif;
+            font-size: 21px;
+            line-height: 1.6;
+            color: #2d2d2d;
+        }
+
+        /* Simulación de página */
+        .page-canvas {
+            min-height: 29.7cm; /* Proporción A4 aproximada */
+            width: 21cm;
+            padding: 3cm 2.5cm;
+            margin: 2rem auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            transition: all 0.5s ease;
+        }
+
+        /* Modos de Color */
+        .theme-sepia { background-color: #f4ecd8; }
+        .theme-sepia .page-canvas { background-color: #fdfaf3; color: #433422; }
+
+        .theme-dark { background-color: #1a1a1a; }
+        .theme-dark .page-canvas { background-color: #242424; color: #e0e0e0; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        /* Línea de "Página Siguiente" */
+        .page-break-indicator {
+            border-top: 1px dashed #ccc;
+            height: 0;
+            margin: 2rem -2.5cm;
+            position: relative;
+        }
+        .page-break-indicator::after {
+            content: "Página 2";
+            position: absolute;
+            right: 0;
+            top: -10px;
+            font-size: 10px;
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+            opacity: 0.5;
+        }
+
+        [contenteditable]:focus { outline: none; }
+        
+        /* Ocultar barra de scroll para máxima inmersión */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #8883; border-radius: 10px; }
+    </style>
+</head>
+<body 
+    x-data="{ 
+        mode: 'sepia', 
+        zen: true, 
+        showToolbar: false,
+        wordCount: 450,
+        pageEstimate: 1
+    }" 
+    :class="'theme-' + mode"
+    class="transition-colors duration-700 ease-in-out min-h-screen"
+>
+
+    <!-- Barra de Herramientas Flotante (Aparece al mover el mouse arriba) -->
+    <nav 
+        @mouseenter="showToolbar = true" 
+        @mouseleave="showToolbar = false"
+        :class="showToolbar ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'"
+        class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 p-4 flex justify-center gap-4 bg-gradient-to-b from-black/10 to-transparent"
+    >
+        <div class="bg-white/80 backdrop-blur-md px-6 py-2 rounded-full shadow-2xl flex items-center gap-6 border border-white/20">
+            <div class="flex gap-2">
+                <button @click="mode = 'sepia'" class="w-6 h-6 rounded-full bg-[#f4ecd8] border border-black/10"></button>
+                <button @click="mode = 'light'" class="w-6 h-6 rounded-full bg-white border border-black/10"></button>
+                <button @click="mode = 'dark'" class="w-6 h-6 rounded-full bg-[#1a1a1a] border border-white/10"></button>
+            </div>
+            
+            <div class="h-4 w-[1px] bg-gray-300"></div>
+            
+            <button class="text-sm font-medium text-gray-600 hover:text-black transition">Exportar PDF</button>
+            <button @click="zen = !zen" class="text-sm font-medium text-indigo-600">
+                <span x-text="zen ? 'Salir de Zen' : 'Modo Zen'"></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Contenedor Principal -->
+    <main :class="zen ? 'pt-10' : 'pt-20'" class="transition-all duration-500">
+        
+        <!-- El Manuscrito (Representa el editor de TipTap) -->
+        <article class="page-canvas prose-book relative group">
+            
+            <!-- Título del Libro -->
+            <header class="mb-12 text-center">
+                <h1 contenteditable="true" class="text-4xl font-semibold opacity-80 mb-2 focus:opacity-100 italic">El Nombre del Viento</h1>
+                <p class="text-xs tracking-widest uppercase opacity-40 font-sans">Capítulo Uno</p>
+            </header>
+
+            <!-- Área de Contenido de TipTap -->
+            <div contenteditable="true" class="min-h-screen focus:outline-none">
+                <p class="mb-6">
+                    Hacía calor en la posada Roca de Guía. Era el calor sofocante y sordo de los finales de otoño. Era un calor hecho de silencios, y el silencio de la posada era un silencio triple.
+                </p>
+                <p class="mb-6">
+                    El silencio más obvio era una calma hueca y desolada, hecha de las cosas que faltaban. Si hubiera soplado el viento, este habría suspirado entre las ramas, habría hecho chirriar el letrero de la posada en sus fijaciones y habría arrastrado el silencio calle abajo como si fueran hojas secas de otoño.
+                </p>
+                
+                <!-- Simulador de Salto de Página Visual -->
+                <div class="page-break-indicator my-12" contenteditable="false"></div>
+
+                <p class="mb-6">
+                    Si hubiera habido gente en la posada, aunque solo fuera un puñado de clientes, ellos habrían llenado el silencio con su conversación y sus risas, con el alboroto y el tintineo de los vasos...
+                </p>
+                <p class="text-gray-400 italic">Continúa escribiendo tu obra maestra aquí...</p>
+            </div>
+
+            <!-- Footer de la página -->
+            <footer class="mt-20 text-center opacity-30 font-sans text-sm">
+                — 1 —
+            </footer>
+        </article>
+    </main>
+
+    <!-- Barra de Estado Inferior (Minimalista) -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-8 px-6 py-2 rounded-full text-[10px] tracking-widest uppercase font-sans opacity-40 hover:opacity-100 transition-opacity">
+        <div><span x-text="wordCount"></span> Palabras</div>
+        <div><span x-text="pageEstimate"></span> Página A4</div>
+        <div>Guardado en la Nube</div>
+    </div>
+
+</body>
+</html>
